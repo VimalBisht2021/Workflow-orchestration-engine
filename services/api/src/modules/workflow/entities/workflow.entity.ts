@@ -1,19 +1,12 @@
 import { WorkflowStatus } from '../enums/workflow-status.enum';
 
-export class WorkflowResponseDto {
+export interface Workflow {
   id: string;
-
   name: string;
-
   description?: string;
-
   owner: string;
-
   tags: string[];
-
   version: number;
-
   status: WorkflowStatus;
-
-  createdAt: string;
+  createdAt: Date;
 }
