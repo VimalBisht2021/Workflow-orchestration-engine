@@ -1,4 +1,11 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+} from '@nestjs/common';
 
 import { CreateWorkflowDto } from '../dto/create-workflow.dto';
 import { WorkflowService } from '../services/workflow.service';
@@ -11,5 +18,11 @@ export class WorkflowController {
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateWorkflowDto) {
     return this.workflowService.create(dto);
+  }
+
+  @Post(':id/validate')
+  @HttpCode(HttpStatus.OK)
+  validate(@Param('id') id: string) {
+    return this.workflowService.validate(id);
   }
 }
