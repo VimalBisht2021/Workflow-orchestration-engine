@@ -1,0 +1,28 @@
+{
+  "name": "@workflow/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./config": "./dist/config/index.js",
+    "./logger": "./dist/logger/index.js",
+    "./errors": "./dist/errors/index.js",
+    "./types": "./dist/types/index.js",
+    "./events": "./dist/events/index.js",
+    "./contracts": "./dist/contracts/index.js",
+    "./redis": "./dist/redis/index.js",
+    "./database": "./dist/database/index.js",
+    "./utils": "./dist/utils/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
