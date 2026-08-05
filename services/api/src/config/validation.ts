@@ -8,4 +8,6 @@ export const validationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'test', 'production')
     .default('development'),
+
+  DATABASE_URL: Joi.string().uri().required(),
 });

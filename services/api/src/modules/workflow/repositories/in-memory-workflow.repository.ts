@@ -21,7 +21,18 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
       throw new Error(`Workflow with id ${id} not found`);
     }
 
-    const updated = { ...existing, ...partial };
+    const updated = new Workflow(
+      existing.id,
+      partial.name ?? existing.name,
+      partial.description !== undefined
+        ? partial.description
+        : existing.description,
+      partial.owner ?? existing.owner,
+      partial.tags ?? existing.tags,
+      partial.version ?? existing.version,
+      partial.status ?? existing.status,
+      existing.createdAt,
+    );
     this.workflows.set(id, updated);
     return updated;
   }

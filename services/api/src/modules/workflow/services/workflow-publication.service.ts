@@ -1,18 +1,14 @@
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { WorkflowStatus } from '../enums/workflow-status.enum';
-import {
-  WorkflowRepository,
   WORKFLOW_REPOSITORY,
+  type WorkflowRepository,
 } from '../repositories/workflow.repository';
 import { WorkflowResponseDto } from '../dto/workflow-response.dto';
 
 @Injectable()
 export class WorkflowPublicationService {
+  private readonly logger = new Logger(WorkflowPublicationService.name);
+
   constructor(
     @Inject(WORKFLOW_REPOSITORY)
     private readonly workflowRepository: WorkflowRepository,
@@ -24,19 +20,12 @@ export class WorkflowPublicationService {
       throw new NotFoundException(`Workflow with id ${workflowId} not found`);
     }
 
-    if (workflow.status === WorkflowStatus.PUBLISHED) {
-      throw new BadRequestException('Workflow is already published');
-    }
-
-    if (workflow.status !== WorkflowStatus.VALIDATED) {
-      throw new BadRequestException(
-        'Workflow must be validated before publishing',
-      );
-    }
+    workflow.publish();
 
     const updated = await this.workflowRepository.update(workflowId, {
-      status: WorkflowStatus.PUBLISHED,
+      status: workflow.status,
     });
+    this.logger.log(`Workflow published with id ${workflowId}`);
 
     return {
       ...updated,

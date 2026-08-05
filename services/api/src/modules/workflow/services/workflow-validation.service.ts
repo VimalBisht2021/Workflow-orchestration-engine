@@ -1,13 +1,15 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { WorkflowStatus } from '../enums/workflow-status.enum';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
-  WorkflowRepository,
   WORKFLOW_REPOSITORY,
+  type WorkflowRepository,
 } from '../repositories/workflow.repository';
 import { WorkflowValidationResponseDto } from '../dto/workflow-validation-response.dto';
+import { WorkflowAlreadyValidatedError } from '../exceptions/domain.exception';
 
 @Injectable()
 export class WorkflowValidationService {
+  private readonly logger = new Logger(WorkflowValidationService.name);
+
   constructor(
     @Inject(WORKFLOW_REPOSITORY)
     private readonly workflowRepository: WorkflowRepository,
@@ -19,10 +21,19 @@ export class WorkflowValidationService {
       throw new NotFoundException(`Workflow with id ${workflowId} not found`);
     }
 
-    if (workflow.status === WorkflowStatus.DRAFT) {
+    try {
+      workflow.validate();
+
       await this.workflowRepository.update(workflowId, {
-        status: WorkflowStatus.VALIDATED,
+        status: workflow.status,
       });
+      this.logger.log(`Validation completed for workflow ${workflowId}`);
+    } catch (error) {
+      if (error instanceof WorkflowAlreadyValidatedError) {
+        // Validation is idempotent if already validated
+      } else {
+        throw error;
+      }
     }
 
     return {

@@ -1,0 +1,127 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum WorkflowStatus {
+  DRAFT
+  VALIDATED
+  PUBLISHED
+}
+
+enum BackoffStrategy {
+  LINEAR
+  EXPONENTIAL
+  FIXED
+}
+
+model Workflow {
+  id          String         @id
+  name        String
+  description String?
+  owner       String
+  version     Int
+  status      WorkflowStatus
+  tags        String[]
+
+  taskDefinitions TaskDefinition[]
+  workflowRuns    WorkflowRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TaskDefinition {
+  id         String   @id
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  name          String
+  handler       String
+  configuration Json?
+  dependencies  String[] // Stores TaskDefinition.id values
+
+  // Retry policy — passed to DTP during dispatch. WOE does not execute retries.
+  maxRetries      Int             @default(0)
+  retryDelayMs    Int             @default(1000)
+  backoffStrategy BackoffStrategy @default(FIXED)
+  timeoutMs       Int?
+
+  taskRuns TaskRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum WorkflowRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// RETRYING removed — retries are owned by the Distributed Task Platform (DTP).
+// WOE only observes terminal outcomes: COMPLETED, FAILED, SKIPPED.
+enum TaskRunStatus {
+  PENDING
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+model WorkflowRun {
+  id              String            @id
+  workflowId      String
+  workflowVersion Int
+  workflow        Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  status          WorkflowRunStatus @default(PENDING)
+
+  replayedFromId String?
+
+  queuedAt    DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  taskRuns TaskRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TaskRun {
+  id            String      @id
+  workflowRunId String
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  taskDefinitionId String
+  taskDefinition   TaskDefinition @relation(fields: [taskDefinitionId], references: [id])
+
+  status TaskRunStatus @default(PENDING)
+
+  input  Json?
+  output Json?
+  error  String?
+
+  queuedAt    DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Stores processed webhook event IDs for idempotency.
+/// Prevents duplicate processing of DTP callback events after restarts.
+model ProcessedWebhookEvent {
+  eventId       String   @id
+  correlationId String?
+  receivedAt    DateTime @default(now())
+
+  @@index([receivedAt])
+}

@@ -1,0 +1,30 @@
+{
+  "title": "System Overview",
+  "tags": ["orchestration"],
+  "timezone": "browser",
+  "schemaVersion": 16,
+  "version": 0,
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Workflows per Minute",
+      "targets": [
+        {
+          "expr": "rate(workflow_starts_total[1m]) * 60",
+          "legendFormat": "Starts/min"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Task Throughput",
+      "targets": [
+        {
+          "expr": "rate(task_starts_total[1m]) * 60",
+          "legendFormat": "Tasks/min"
+        }
+      ]
+    }
+  ]
+}

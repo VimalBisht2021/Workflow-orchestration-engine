@@ -1,34 +1,45 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { v4 as uuid } from 'uuid';
 import { CreateWorkflowDto } from '../dto/create-workflow.dto';
 import { WorkflowStatus } from '../enums/workflow-status.enum';
 import { Workflow } from '../entities/workflow.entity';
 import {
-  WorkflowRepository,
   WORKFLOW_REPOSITORY,
+  type WorkflowRepository,
 } from '../repositories/workflow.repository';
 import { WorkflowResponseDto } from '../dto/workflow-response.dto';
 
 @Injectable()
 export class WorkflowCreationService {
+  private readonly logger = new Logger(WorkflowCreationService.name);
+
   constructor(
     @Inject(WORKFLOW_REPOSITORY)
     private readonly workflowRepository: WorkflowRepository,
   ) {}
 
   async create(dto: CreateWorkflowDto): Promise<WorkflowResponseDto> {
-    const workflow: Workflow = {
-      id: uuid(),
-      name: dto.name,
-      description: dto.description,
-      owner: dto.owner,
-      tags: dto.tags ?? [],
-      version: 1,
-      status: WorkflowStatus.DRAFT,
-      createdAt: new Date(),
-    };
+    const workflow = new Workflow(
+      uuid(),
+      dto.name,
+      dto.description,
+      dto.owner,
+      dto.tags ?? [],
+      1,
+      WorkflowStatus.DRAFT,
+      new Date(),
+    );
 
-    await this.workflowRepository.save(workflow);
+    try {
+      await this.workflowRepository.save(workflow);
+      this.logger.log(`New workflow created with id ${workflow.id}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to save workflow ${workflow.id}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
 
     return {
       ...workflow,

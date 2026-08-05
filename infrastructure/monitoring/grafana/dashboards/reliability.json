@@ -1,0 +1,40 @@
+{
+  "title": "Reliability",
+  "tags": ["orchestration", "reliability"],
+  "timezone": "browser",
+  "schemaVersion": 16,
+  "version": 0,
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Retries per Minute",
+      "targets": [
+        {
+          "expr": "rate(task_retries_total[1m]) * 60",
+          "legendFormat": "Retries/min"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Task Failures per Minute",
+      "targets": [
+        {
+          "expr": "rate(task_failures_total[1m]) * 60",
+          "legendFormat": "Task Failures/min"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Workflow Failures per Minute",
+      "targets": [
+        {
+          "expr": "rate(workflow_failures_total[1m]) * 60",
+          "legendFormat": "Workflow Failures/min"
+        }
+      ]
+    }
+  ]
+}
