@@ -1,0 +1,22 @@
+{
+  "taskId": "task-small-001",
+  "workflowId": "wf-001",
+  "type": "TEST_TASK",
+  "payload": {
+    "user_id": "u-12345",
+    "context": {
+      "tenant": "t-987",
+      "region": "us-east-1",
+      "roles": ["admin", "editor"],
+      "sessionData": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    },
+    "parameters": {
+      "retries": 3,
+      "timeout": 5000,
+      "features": {
+        "enableNewAlgo": true,
+        "useCache": false
+      }
+    }
+  }
+}

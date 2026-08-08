@@ -13,7 +13,13 @@ export class RemoteTaskExecutionGateway implements TaskExecutionGateway {
     this.client = new ExecutionClient({
       baseUrl:
         this.configService.get<string>('DTP_BASE_URL') ||
-        'http://localhost:3001',
+        'http://localhost:4000',
+      apiKey:
+        this.configService.get<string>('DTP_API_KEY') ||
+        'dtp-secret-api-key',
+      webhookUrl:
+        this.configService.get<string>('WOE_WEBHOOK_URL') ||
+        'http://localhost:3000/api/webhooks/tasks/events',
     });
   }
 

@@ -208,7 +208,7 @@ export class ExecutionEngine {
     taskRun: TaskRun,
     workflowRun: WorkflowRun,
     definitionMap: Map<string, TaskDefinition>,
-  ): ExecutionApiV1DispatchRequest {
+  ): DispatchRequest {
     const definition = definitionMap.get(taskRun.taskDefinitionId);
     if (!definition) {
       throw new Error(

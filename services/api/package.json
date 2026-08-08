@@ -20,8 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@local/execution-contract": "file:C:/Users/Gues/Desktop/execution-contract",
-    "@local/execution-sdk": "file:C:/Users/Gues/Desktop/execution-sdk",
+    "@local/execution-contract": "file:../../packages/execution-contract",
+    "@local/execution-sdk": "file:../../packages/execution-sdk",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",

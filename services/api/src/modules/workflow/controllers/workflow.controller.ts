@@ -14,6 +14,13 @@ import { WorkflowValidationResponseDto } from '../dto/workflow-validation-respon
 import { WorkflowCreationService } from '../services/workflow-creation.service';
 import { WorkflowValidationService } from '../services/workflow-validation.service';
 import { WorkflowPublicationService } from '../services/workflow-publication.service';
+import { WorkflowQueryService } from '../services/workflow-query.service';
+import { ExecutionEngine } from '../../execution/services/execution-engine.service';
+import { Get, Post, HttpCode, HttpStatus, Param, Body, Controller } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { CreateWorkflowDto } from '../dto/create-workflow.dto';
+import { WorkflowResponseDto } from '../dto/workflow-response.dto';
+import { WorkflowValidationResponseDto } from '../dto/workflow-validation-response.dto';
 
 @ApiTags('workflows')
 @Controller('workflows')
@@ -22,7 +29,31 @@ export class WorkflowController {
     private readonly workflowCreationService: WorkflowCreationService,
     private readonly workflowValidationService: WorkflowValidationService,
     private readonly workflowPublicationService: WorkflowPublicationService,
+    private readonly workflowQueryService: WorkflowQueryService,
+    private readonly executionEngine: ExecutionEngine,
   ) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get all workflows' })
+  @ApiResponse({ status: 200, description: 'List of all workflows.' })
+  findAll() {
+    return this.workflowQueryService.findAll();
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a workflow by ID' })
+  @ApiResponse({ status: 200, description: 'The workflow details.' })
+  findOne(@Param('id') id: string) {
+    return this.workflowQueryService.findOne(id);
+  }
+
+  @Post(':id/execute')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Execute a published workflow' })
+  @ApiResponse({ status: 201, description: 'The workflow run.' })
+  execute(@Param('id') id: string) {
+    return this.executionEngine.startWorkflow(id);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

@@ -1,0 +1,24 @@
+{
+  "name": "workflow-platform-system-tests",
+  "version": "1.0.0",
+  "description": "E2E and Chaos tests for the Workflow Platform",
+  "scripts": {
+    "test:component": "jest --config jest.component.config.js",
+    "test:system": "jest --config jest.system.config.js",
+    "test:chaos": "jest --config jest.chaos.config.js"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@local/execution-contract": "workspace:^",
+    "@local/execution-sdk": "workspace:^",
+    "axios": "^1.4.0",
+    "ioredis": "^5.3.0",
+    "pg": "^8.11.0"
+  }
+}

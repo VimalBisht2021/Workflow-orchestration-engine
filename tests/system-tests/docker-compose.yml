@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: workflow_platform
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  woe-api:
+    build:
+      context: ../workflow-orchestration-engine
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/workflow_platform?schema=public
+      - DTP_BASE_URL=http://dtp-api:4000
+      - DTP_API_KEY=dtp-secret-api-key
+      - WOE_WEBHOOK_URL=http://woe-api:3000/api/webhooks/tasks/events
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dtp-api:
+    build:
+      context: ../distributed-task-platform
+      dockerfile: services/api-service/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/workflow_platform?schema=public
+      - REDIS_URL=redis://redis:6379
+      - API_KEY=dtp-secret-api-key
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  dtp-worker:
+    build:
+      context: ../distributed-task-platform
+      dockerfile: services/worker-service/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/workflow_platform?schema=public
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  dtp-scheduler:
+    build:
+      context: ../distributed-task-platform
+      dockerfile: services/scheduler-service/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/workflow_platform?schema=public
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

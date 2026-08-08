@@ -12,6 +12,45 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    restart: always
+    ports:
+      - '3000:3000'
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/workflow_db?schema=public
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DTP_BASE_URL=http://worker:4000
+      - WOE_WEBHOOK_URL=http://api:3000/webhooks/tasks/events
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    restart: always
+    ports:
+      - '3001:3000'
+    depends_on:
+      - api
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+
+  worker:
+    build:
+      context: services/mock-worker
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - '4000:4000'
+    depends_on:
+      - api
+
   redis:
     image: redis:7-alpine
     restart: always

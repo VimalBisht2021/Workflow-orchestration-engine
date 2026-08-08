@@ -1,0 +1,20 @@
+[
+  {
+    "name": "woe_webhook_proxy",
+    "listen": "0.0.0.0:3002",
+    "upstream": "woe:3001",
+    "enabled": true,
+    "toxics": [
+      {
+        "name": "latency_toxic",
+        "type": "latency",
+        "stream": "upstream",
+        "toxicity": 1.0,
+        "attributes": {
+          "latency": 60000, 
+          "jitter": 5000 
+        }
+      }
+    ]
+  }
+]

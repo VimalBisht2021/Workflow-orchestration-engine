@@ -1,0 +1,6 @@
+{
+  "taskId": "task-tiny-001",
+  "workflowId": "wf-001",
+  "type": "TEST_TASK",
+  "payload": {}
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@local/builder",
+  "version": "1.0.0",
+  "description": "Shared Workflow Studio — visual workflow designer components and core logic",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "@xyflow/react": ">=12.0.0",
+    "zustand": ">=4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/react": "^19.0.0",
+    "@types/node": "^20.0.0"
+  }
+}
