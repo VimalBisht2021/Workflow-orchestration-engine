@@ -19,12 +19,12 @@ RUN pnpm run build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=builder /app/apps/dashboard/public ./public
+COPY --from=builder /app/apps/dashboard/public ./apps/dashboard/public
 COPY --from=builder /app/apps/dashboard/.next/standalone ./
-COPY --from=builder /app/apps/dashboard/.next/static ./.next/static
+COPY --from=builder /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+CMD ["node", "apps/dashboard/server.js"]

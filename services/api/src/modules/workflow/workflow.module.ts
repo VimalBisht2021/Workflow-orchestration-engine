@@ -25,5 +25,6 @@ import { forwardRef } from '@nestjs/common';
       useClass: PrismaWorkflowRepository,
     },
   ],
+  exports: [WORKFLOW_REPOSITORY],
 })
 export class WorkflowModule {}

@@ -27,4 +27,4 @@ COPY --from=builder /app/services/api/package.json ./services/api/
 COPY --from=builder /app/services/api/node_modules ./services/api/node_modules
 
 WORKDIR /app/services/api
-CMD ["node", "dist/main"]
+CMD ["node", "dist/main.js"]
