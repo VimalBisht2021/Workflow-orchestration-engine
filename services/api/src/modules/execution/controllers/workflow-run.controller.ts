@@ -13,6 +13,7 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ReplayService } from '../services/replay.service';
 import type { WorkflowRunRepository } from '../repositories/workflow-run.repository';
 import { WORKFLOW_RUN_REPOSITORY } from '../repositories/workflow-run.repository';
+import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 
 @ApiTags('workflow-runs')
 @Controller('workflow-runs')

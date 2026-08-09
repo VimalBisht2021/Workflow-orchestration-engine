@@ -8,6 +8,7 @@ WORKDIR /app
 COPY pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml ./
 COPY package.json ./
+COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/dashboard ./apps/dashboard
 

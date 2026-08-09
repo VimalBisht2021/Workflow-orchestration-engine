@@ -8,10 +8,14 @@ WORKDIR /app
 COPY pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml ./
 COPY package.json ./
+COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY services/api ./services/api
+COPY prisma ./prisma
+COPY prisma.config.ts ./
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN npx prisma generate
 RUN pnpm run -r build
 
 FROM base AS runner

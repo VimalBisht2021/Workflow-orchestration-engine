@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@local/builder": "file:..\\..\\packages\\builder",
+    "@local/builder": "workspace:*",
     "@xyflow/react": "^12.11.2",
     "lucide-react": "^1.30.0",
     "next": "16.3.0",
