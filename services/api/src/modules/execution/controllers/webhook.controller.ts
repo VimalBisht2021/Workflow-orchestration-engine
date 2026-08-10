@@ -8,7 +8,10 @@ import {
   BadRequestException,
   Logger,
   Inject,
+  Req,
+  RawBodyRequest,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { WebhookEventDto } from '../dto/webhook-event.dto';
 import type { TaskRunRepository } from '../repositories/task-run.repository';
@@ -48,10 +51,11 @@ export class WebhookController {
   @HttpCode(202)
   async handleEvent(
     @Headers('x-signature') signature: string,
+    @Req() req: RawBodyRequest<Request>,
     @Body() body: WebhookEventDto,
   ): Promise<void> {
-    // 1. Authenticate — HMAC-SHA256 signature verification
-    if (!this.verifySignature(signature, body)) {
+    // 1. Authenticate — HMAC-SHA256 signature verification over exact raw bytes
+    if (!this.verifySignature(signature, req.rawBody)) {
       throw new UnauthorizedException('Invalid signature');
     }
 
@@ -124,7 +128,9 @@ export class WebhookController {
         switch (body.eventType) {
           case 'TASK_STARTED': {
             if (taskRunModel.status === 'SCHEDULED') {
-              this.logger.log(`Task transitioning to RUNNING (workflowRunId=${body.payload.workflowRunId}, taskRunId=${body.payload.taskRunId}, correlationId=${body.payload.correlationId})`);
+              this.logger.log(
+                `Task transitioning to RUNNING (workflowRunId=${body.payload.workflowRunId}, taskRunId=${body.payload.taskRunId}, correlationId=${body.payload.correlationId})`,
+              );
               await tx.taskRun.update({
                 where: { id: taskRunModel.id },
                 data: {
@@ -138,7 +144,9 @@ export class WebhookController {
           }
 
           case 'TASK_COMPLETED': {
-            this.logger.log(`Task transitioning to COMPLETED (workflowRunId=${body.payload.workflowRunId}, taskRunId=${body.payload.taskRunId}, correlationId=${body.payload.correlationId})`);
+            this.logger.log(
+              `Task transitioning to COMPLETED (workflowRunId=${body.payload.workflowRunId}, taskRunId=${body.payload.taskRunId}, correlationId=${body.payload.correlationId})`,
+            );
             await tx.taskRun.update({
               where: { id: taskRunModel.id },
               data: {
@@ -162,7 +170,9 @@ export class WebhookController {
           }
 
           case 'TASK_FAILED': {
-            this.logger.log(`Task transitioning to FAILED (workflowRunId=${body.payload.workflowRunId}, taskRunId=${body.payload.taskRunId}, correlationId=${body.payload.correlationId})`);
+            this.logger.log(
+              `Task transitioning to FAILED (workflowRunId=${body.payload.workflowRunId}, taskRunId=${body.payload.taskRunId}, correlationId=${body.payload.correlationId})`,
+            );
             const errorMsg =
               typeof body.payload.error === 'string'
                 ? body.payload.error
@@ -189,7 +199,9 @@ export class WebhookController {
           }
 
           case 'TASK_CANCELLED': {
-            this.logger.log(`Task transitioning to SKIPPED (workflowRunId=${body.payload.workflowRunId}, taskRunId=${body.payload.taskRunId}, correlationId=${body.payload.correlationId})`);
+            this.logger.log(
+              `Task transitioning to SKIPPED (workflowRunId=${body.payload.workflowRunId}, taskRunId=${body.payload.taskRunId}, correlationId=${body.payload.correlationId})`,
+            );
             // Cancellation is treated as a skip from WOE's perspective
             await tx.taskRun.update({
               where: { id: taskRunModel.id },
@@ -228,11 +240,14 @@ export class WebhookController {
 
   // ─── Private Helpers ─────────────────────────────────────────────
 
-  private verifySignature(signature: string, body: unknown): boolean {
-    if (!signature) return false;
+  private verifySignature(
+    signature: string,
+    rawBody: Buffer | undefined,
+  ): boolean {
+    if (!signature || !rawBody) return false;
     const expectedSignature = crypto
       .createHmac('sha256', this.webhookSecret)
-      .update(JSON.stringify(body))
+      .update(rawBody)
       .digest('hex');
     return crypto.timingSafeEqual(
       Buffer.from(signature, 'hex'),

@@ -28,6 +28,8 @@ services:
       - REDIS_PORT=6379
       - DTP_BASE_URL=http://host.docker.internal:4001
       - WOE_WEBHOOK_URL=http://host.docker.internal:3000/api/webhooks/tasks/events
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
 
   dashboard:
     build:

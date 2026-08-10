@@ -1,17 +1,15 @@
 import { WebhookController } from './webhook.controller';
-import { TaskRun } from '../entities/task-run.entity';
-import { WorkflowRun } from '../entities/workflow-run.entity';
-import { TaskRunStatus, WorkflowRunStatus } from '@prisma/client';
+import { TaskRunStatus, WorkflowRunStatus, Prisma } from '@prisma/client';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import type { WebhookEventDto } from '../dto/webhook-event.dto';
 
 const WEBHOOK_SECRET = 'test-secret';
 
-function makeSignature(body: unknown): string {
+function makeSignature(rawBody: Buffer): string {
   return crypto
     .createHmac('sha256', WEBHOOK_SECRET)
-    .update(JSON.stringify(body))
+    .update(rawBody)
     .digest('hex');
 }
 
@@ -36,35 +34,20 @@ function makeEvent(
   return base;
 }
 
-function makeTaskRun(overrides: Partial<TaskRun> = {}): TaskRun {
-  return new TaskRun(
-    overrides.id ?? 'tr-1',
-    overrides.workflowRunId ?? 'wr-1',
-    'td-1',
-    overrides.status ?? TaskRunStatus.RUNNING,
-    null,
-    null,
-    null,
-    null,
-    new Date(),
-    null,
-    new Date(),
-    new Date(),
-  );
+function makeTaskRunModel(overrides: Partial<any> = {}) {
+  return {
+    id: overrides.id ?? 'tr-1',
+    workflowRunId: overrides.workflowRunId ?? 'wr-1',
+    status: overrides.status ?? TaskRunStatus.RUNNING,
+  };
 }
 
-function makeWorkflowRun(overrides: Partial<WorkflowRun> = {}): WorkflowRun {
-  return new WorkflowRun(
-    overrides.id ?? 'wr-1',
-    'wf-1',
-    overrides.workflowVersion ?? 1,
-    overrides.status ?? WorkflowRunStatus.RUNNING,
-    null,
-    new Date(),
-    null,
-    new Date(),
-    new Date(),
-  );
+function makeWorkflowRunModel(overrides: Partial<any> = {}) {
+  return {
+    id: overrides.id ?? 'wr-1',
+    workflowVersion: overrides.workflowVersion ?? 1,
+    status: overrides.status ?? WorkflowRunStatus.RUNNING,
+  };
 }
 
 describe('WebhookController', () => {
@@ -76,24 +59,26 @@ describe('WebhookController', () => {
   let mockConfigService: any;
 
   beforeEach(() => {
-    mockTaskRunRepo = {
-      findById: jest.fn(),
-      update: jest.fn(),
-    };
-    mockWorkflowRunRepo = {
-      findById: jest.fn(),
-    };
+    mockTaskRunRepo = {};
+    mockWorkflowRunRepo = {};
     mockEventPublisher = {
       publish: jest.fn().mockResolvedValue(undefined),
     };
     mockPrisma = {
+      $transaction: jest.fn().mockImplementation(async (cb) => cb(mockPrisma)),
       processedWebhookEvent: {
-        findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue(undefined),
+      },
+      taskRun: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+      },
+      workflowRun: {
+        findUnique: jest.fn(),
       },
     };
     mockConfigService = {
-      get: jest.fn().mockReturnValue(WEBHOOK_SECRET),
+      getOrThrow: jest.fn().mockReturnValue(WEBHOOK_SECRET),
     };
 
     controller = new WebhookController(
@@ -108,16 +93,19 @@ describe('WebhookController', () => {
   describe('Signature Validation', () => {
     it('should reject missing signature', async () => {
       const body = makeEvent();
-      await expect(controller.handleEvent('', body)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      const rawBody = Buffer.from(JSON.stringify(body));
+      await expect(
+        controller.handleEvent('', { rawBody } as any, body),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should reject invalid signature', async () => {
       const body = makeEvent();
+      const rawBody = Buffer.from(JSON.stringify(body));
       await expect(
         controller.handleEvent(
           'invalid-hex-signature-value-000000000000000000000000000000000000000000000000000000000000000',
+          { rawBody } as any,
           body,
         ),
       ).rejects.toThrow();
@@ -125,38 +113,44 @@ describe('WebhookController', () => {
   });
 
   describe('Event Idempotency', () => {
-    it('should ignore duplicate eventId', async () => {
+    it('should ignore duplicate eventId (P2002 error)', async () => {
       const body = makeEvent({ eventId: 'evt-duplicate' });
-      const signature = makeSignature(body);
+      const rawBody = Buffer.from(JSON.stringify(body));
+      const signature = makeSignature(rawBody);
 
-      // Simulate already processed
-      mockPrisma.processedWebhookEvent.findUnique.mockResolvedValue({
-        eventId: 'evt-duplicate',
-      });
+      // Simulate P2002 Prisma duplicate insert error
+      mockPrisma.processedWebhookEvent.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('duplicate', {
+          code: 'P2002',
+          clientVersion: 'x',
+        }),
+      );
 
-      await controller.handleEvent(signature, body);
+      await controller.handleEvent(signature, { rawBody } as any, body);
 
-      // Should NOT have called taskRunRepository
-      expect(mockTaskRunRepo.findById).not.toHaveBeenCalled();
+      // Should NOT have called taskRun.findUnique
+      expect(mockPrisma.taskRun.findUnique).not.toHaveBeenCalled();
     });
   });
 
   describe('Duplicate Callback', () => {
     it('should ignore TASK_COMPLETED if task is already terminal', async () => {
       const body = makeEvent({ eventType: 'TASK_COMPLETED' });
-      const signature = makeSignature(body);
+      const rawBody = Buffer.from(JSON.stringify(body));
+      const signature = makeSignature(rawBody);
 
-      // Task is already COMPLETED
-      mockTaskRunRepo.findById.mockResolvedValue(
-        makeTaskRun({ status: TaskRunStatus.COMPLETED }),
+      mockPrisma.taskRun.findUnique.mockResolvedValue(
+        makeTaskRunModel({ status: TaskRunStatus.COMPLETED }),
       );
-      mockWorkflowRunRepo.findById.mockResolvedValue(makeWorkflowRun());
+      mockPrisma.workflowRun.findUnique.mockResolvedValue(
+        makeWorkflowRunModel(),
+      );
 
-      await controller.handleEvent(signature, body);
+      await controller.handleEvent(signature, { rawBody } as any, body);
 
       // Should NOT have called update
-      expect(mockTaskRunRepo.update).not.toHaveBeenCalled();
-      // Should still mark event as processed
+      expect(mockPrisma.taskRun.update).not.toHaveBeenCalled();
+      // Should have inserted the processed event
       expect(mockPrisma.processedWebhookEvent.create).toHaveBeenCalled();
     });
   });
@@ -166,16 +160,17 @@ describe('WebhookController', () => {
       const body = makeEvent({
         payload: { workflowVersion: 99 } as any,
       });
-      const signature = makeSignature(body);
+      const rawBody = Buffer.from(JSON.stringify(body));
+      const signature = makeSignature(rawBody);
 
-      mockTaskRunRepo.findById.mockResolvedValue(makeTaskRun());
-      mockWorkflowRunRepo.findById.mockResolvedValue(
-        makeWorkflowRun({ workflowVersion: 1 }),
+      mockPrisma.taskRun.findUnique.mockResolvedValue(makeTaskRunModel());
+      mockPrisma.workflowRun.findUnique.mockResolvedValue(
+        makeWorkflowRunModel({ workflowVersion: 1 }),
       );
 
-      await expect(controller.handleEvent(signature, body)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        controller.handleEvent(signature, { rawBody } as any, body),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -184,13 +179,14 @@ describe('WebhookController', () => {
       const body = makeEvent({
         payload: { taskRunId: 'tr-unknown' } as any,
       });
-      const signature = makeSignature(body);
+      const rawBody = Buffer.from(JSON.stringify(body));
+      const signature = makeSignature(rawBody);
 
-      mockTaskRunRepo.findById.mockResolvedValue(null);
+      mockPrisma.taskRun.findUnique.mockResolvedValue(null);
 
-      await expect(controller.handleEvent(signature, body)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        controller.handleEvent(signature, { rawBody } as any, body),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -200,17 +196,22 @@ describe('WebhookController', () => {
         eventType: 'TASK_COMPLETED',
         payload: { output: { result: 'ok' } } as any,
       });
-      const signature = makeSignature(body);
+      const rawBody = Buffer.from(JSON.stringify(body));
+      const signature = makeSignature(rawBody);
 
-      mockTaskRunRepo.findById.mockResolvedValue(makeTaskRun());
-      mockWorkflowRunRepo.findById.mockResolvedValue(makeWorkflowRun());
+      mockPrisma.taskRun.findUnique.mockResolvedValue(makeTaskRunModel());
+      mockPrisma.workflowRun.findUnique.mockResolvedValue(
+        makeWorkflowRunModel(),
+      );
 
-      await controller.handleEvent(signature, body);
+      await controller.handleEvent(signature, { rawBody } as any, body);
 
-      expect(mockTaskRunRepo.update).toHaveBeenCalledWith(
-        'tr-1',
+      expect(mockPrisma.taskRun.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          status: TaskRunStatus.COMPLETED,
+          where: { id: 'tr-1' },
+          data: expect.objectContaining({
+            status: TaskRunStatus.COMPLETED,
+          }),
         }),
       );
       expect(mockEventPublisher.publish).toHaveBeenCalled();
@@ -224,17 +225,22 @@ describe('WebhookController', () => {
         eventType: 'TASK_FAILED',
         payload: { error: 'timeout' } as any,
       });
-      const signature = makeSignature(body);
+      const rawBody = Buffer.from(JSON.stringify(body));
+      const signature = makeSignature(rawBody);
 
-      mockTaskRunRepo.findById.mockResolvedValue(makeTaskRun());
-      mockWorkflowRunRepo.findById.mockResolvedValue(makeWorkflowRun());
+      mockPrisma.taskRun.findUnique.mockResolvedValue(makeTaskRunModel());
+      mockPrisma.workflowRun.findUnique.mockResolvedValue(
+        makeWorkflowRunModel(),
+      );
 
-      await controller.handleEvent(signature, body);
+      await controller.handleEvent(signature, { rawBody } as any, body);
 
-      expect(mockTaskRunRepo.update).toHaveBeenCalledWith(
-        'tr-1',
+      expect(mockPrisma.taskRun.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          status: TaskRunStatus.FAILED,
+          where: { id: 'tr-1' },
+          data: expect.objectContaining({
+            status: TaskRunStatus.FAILED,
+          }),
         }),
       );
       expect(mockEventPublisher.publish).toHaveBeenCalled();
@@ -242,19 +248,24 @@ describe('WebhookController', () => {
 
     it('should process TASK_STARTED and transition to RUNNING', async () => {
       const body = makeEvent({ eventType: 'TASK_STARTED' });
-      const signature = makeSignature(body);
+      const rawBody = Buffer.from(JSON.stringify(body));
+      const signature = makeSignature(rawBody);
 
-      mockTaskRunRepo.findById.mockResolvedValue(
-        makeTaskRun({ status: TaskRunStatus.SCHEDULED }),
+      mockPrisma.taskRun.findUnique.mockResolvedValue(
+        makeTaskRunModel({ status: TaskRunStatus.SCHEDULED }),
       );
-      mockWorkflowRunRepo.findById.mockResolvedValue(makeWorkflowRun());
+      mockPrisma.workflowRun.findUnique.mockResolvedValue(
+        makeWorkflowRunModel(),
+      );
 
-      await controller.handleEvent(signature, body);
+      await controller.handleEvent(signature, { rawBody } as any, body);
 
-      expect(mockTaskRunRepo.update).toHaveBeenCalledWith(
-        'tr-1',
+      expect(mockPrisma.taskRun.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          status: TaskRunStatus.RUNNING,
+          where: { id: 'tr-1' },
+          data: expect.objectContaining({
+            status: TaskRunStatus.RUNNING,
+          }),
         }),
       );
     });

@@ -12,7 +12,10 @@ import { DomainExceptionFilter } from './common/filters/domain-exception.filter'
 import { Logger } from 'nestjs-pino';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
   app.enableCors();
   app.useLogger(app.get(Logger));
 

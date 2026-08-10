@@ -1,5 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { trace } from '@opentelemetry/api';
+import * as crypto from 'crypto';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { WorkflowRepository } from '../../workflow/repositories/workflow.repository';
 import { WORKFLOW_REPOSITORY } from '../../workflow/repositories/workflow.repository';
@@ -69,8 +70,9 @@ export class ExecutionEngine {
 
       const workflowRun = this.workflowRunFactory.create(workflow);
 
+      const correlationId = span.spanContext().traceId || crypto.randomUUID();
       span.setAttribute('workflow.run_id', workflowRun.id);
-      span.setAttribute('correlation.id', `corr-${workflowRun.id}`);
+      span.setAttribute('correlation.id', correlationId);
 
       // Persist run and task runs
       await this.workflowRunRepository.create(workflowRun);
@@ -218,7 +220,7 @@ export class ExecutionEngine {
     }
 
     const activeSpan = trace.getActiveSpan();
-    const traceparent = activeSpan 
+    const traceparent = activeSpan
       ? `00-${activeSpan.spanContext().traceId}-${activeSpan.spanContext().spanId}-0${activeSpan.spanContext().traceFlags.toString(16).padStart(2, '0')}`
       : undefined;
 
@@ -238,7 +240,8 @@ export class ExecutionEngine {
             }
           : null,
       timeoutMs: definition.timeoutMs ?? null,
-      correlationId: `corr-${workflowRun.id}`,
+      correlationId:
+        activeSpan?.spanContext().traceId || `corr-${workflowRun.id}`,
       traceparent,
       capabilities: {},
     };
