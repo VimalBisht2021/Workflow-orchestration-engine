@@ -2,7 +2,7 @@ const fetch = globalThis.fetch;
 
 async function main() {
   console.log('Publishing workflow...');
-  const workflowRes = await fetch('http://localhost:3000/api/workflows', {
+  const workflowRes = await fetch('http://localhost:3000/workflows', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -12,7 +12,7 @@ async function main() {
         {
           id: 'task-1',
           name: 'Echo Test',
-          handler: 'http', // Assuming 'http' is a registered handler that uses DTP
+          handler: 'HTTP', // Uses DTP HTTP worker
           dependencies: [],
           timeoutMs: 10000,
           retries: 0,
@@ -30,13 +30,13 @@ async function main() {
   console.log('Workflow created:', workflow.id);
 
   console.log('Starting workflow run...');
-  const runRes = await fetch(`http://localhost:3000/api/workflows/${workflow.id}/runs`, {
+  const runRes = await fetch(`http://localhost:3000/workflows/${workflow.id}/runs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       input: {
         method: 'GET',
-        url: 'https://httpbin.org/get',
+        url: 'http://host.docker.internal:8080/',
         headers: {
           'x-test': 'hello-e2e'
         }
@@ -55,7 +55,7 @@ async function main() {
   // poll for completion
   let attempts = 0;
   while(attempts < 15) {
-    const statusRes = await fetch(`http://localhost:3000/api/workflow-runs/${run.id}`);
+    const statusRes = await fetch(`http://localhost:3000/workflow-runs/${run.id}`);
     const status = await statusRes.json();
     console.log(`Run status: ${status.status}`);
     if (status.status === 'COMPLETED') {

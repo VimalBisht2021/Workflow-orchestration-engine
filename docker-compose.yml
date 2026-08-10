@@ -82,6 +82,12 @@ services:
       - '4318:4318' # OTLP HTTP
       - '4317:4317' # OTLP gRPC
 
+  echo:
+    image: mendhak/http-https-echo:34
+    restart: always
+    ports:
+      - '8080:8080'
+
 volumes:
   postgres_data:
   redis_data:

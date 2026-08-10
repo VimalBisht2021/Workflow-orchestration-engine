@@ -1,11 +1,50 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  IsEnum,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { BackoffStrategy } from '@prisma/client';
+
+export class TaskDefinitionDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  name: string;
+
+  @IsString()
+  handler: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  dependencies: string[];
+
+  @IsOptional()
+  @IsNumber()
+  maxRetries?: number;
+
+  @IsOptional()
+  @IsNumber()
+  retryDelayMs?: number;
+
+  @IsOptional()
+  @IsEnum(BackoffStrategy)
+  backoffStrategy?: BackoffStrategy;
+
+  @IsOptional()
+  configuration?: any;
+
+  @IsOptional()
+  @IsNumber()
+  timeoutMs?: number;
+}
 
 export class CreateWorkflowDto {
   @ApiProperty({
@@ -41,4 +80,13 @@ export class CreateWorkflowDto {
   })
   @IsString()
   owner: string;
+
+  @ApiPropertyOptional({
+    description: 'Tasks in the workflow',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskDefinitionDto)
+  tasks?: TaskDefinitionDto[];
 }

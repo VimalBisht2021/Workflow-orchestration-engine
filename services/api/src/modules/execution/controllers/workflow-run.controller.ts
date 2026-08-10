@@ -51,6 +51,7 @@ export class WorkflowRunController {
   async findOne(@Param('id') id: string) {
     const run = await this.prisma.workflowRun.findUnique({
       where: { id },
+      include: { taskRuns: true },
     });
     if (!run) throw new NotFoundException(`WorkflowRun ${id} not found`);
     return run;
@@ -72,7 +73,7 @@ export class WorkflowRunController {
   async getEvents(@Param('id') id: string) {
     // We do not have a dedicated Event Store yet in Prisma for WOE.
     // In a real CQRS/ES system this would query the EventStore.
-    // For now we return an empty array to satisfy the UI requirement, 
+    // For now we return an empty array to satisfy the UI requirement,
     // or we can just mock it or skip it if there is no table.
     // Let's assume there's an event store if Prisma has it.
     // Actually, let's just return a generic response or check if event_store exists.

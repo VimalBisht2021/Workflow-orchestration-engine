@@ -3,11 +3,13 @@ import { v4 as uuid } from 'uuid';
 import { CreateWorkflowDto } from '../dto/create-workflow.dto';
 import { WorkflowStatus } from '../enums/workflow-status.enum';
 import { Workflow } from '../entities/workflow.entity';
+import { TaskDefinition } from '../entities/task-definition.entity';
 import {
   WORKFLOW_REPOSITORY,
   type WorkflowRepository,
 } from '../repositories/workflow.repository';
 import { WorkflowResponseDto } from '../dto/workflow-response.dto';
+import { BackoffStrategy } from '@prisma/client';
 
 @Injectable()
 export class WorkflowCreationService {
@@ -29,6 +31,24 @@ export class WorkflowCreationService {
       WorkflowStatus.DRAFT,
       new Date(),
     );
+
+    if (dto.tasks) {
+      for (const t of dto.tasks) {
+        workflow.addTask(
+          new TaskDefinition(
+            t.id,
+            t.name,
+            t.handler,
+            t.dependencies || [],
+            t.maxRetries || 0,
+            t.retryDelayMs || 1000,
+            t.backoffStrategy || BackoffStrategy.CONSTANT,
+            t.configuration,
+            t.timeoutMs,
+          ),
+        );
+      }
+    }
 
     try {
       await this.workflowRepository.save(workflow);
