@@ -37,7 +37,7 @@ export class ExecutionClient {
    * Dispatches a task to the Distributed Task Platform (DTP) using the DTP Adapter.
    */
   async dispatch(request: DispatchRequest): Promise<DispatchResponse> {
-    const url = `${this.config.baseUrl.replace(/\/$/, '')}/api/jobs`;
+    const url = `${this.config.baseUrl.replace(/\/$/, '')}/jobs`;
     const dtpPayload = DispatchRequestMapper.toCreateJobDto(request, this.config.webhookUrl);
     
     const response = await fetch(url, {
@@ -59,7 +59,7 @@ export class ExecutionClient {
    * Gets the status of a job from DTP by idempotency key
    */
   async getJobStatus(idempotencyKey: string): Promise<any> {
-    const url = `${this.config.baseUrl.replace(/\/$/, '')}/api/jobs/by-idempotency-key/${idempotencyKey}`;
+    const url = `${this.config.baseUrl.replace(/\/$/, '')}/jobs/by-idempotency-key/${idempotencyKey}`;
     const response = await fetch(url, {
       headers: {
         'x-api-key': this.config.apiKey,

@@ -42,7 +42,7 @@ export class WorkflowCreationService {
             t.dependencies || [],
             t.maxRetries || 0,
             t.retryDelayMs || 1000,
-            t.backoffStrategy || BackoffStrategy.CONSTANT,
+            t.backoffStrategy || BackoffStrategy.FIXED,
             t.configuration,
             t.timeoutMs,
           ),

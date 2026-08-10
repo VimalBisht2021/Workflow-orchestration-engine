@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module, forwardRef, OnModuleInit } from '@nestjs/common';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { ExecutionEngine } from './services/execution-engine.service';
 import { DependencyResolver } from './services/dependency-resolver.service';
@@ -59,4 +59,15 @@ import { ReconciliationService } from './services/reconciliation.service';
     HandlerRegistry,
   ],
 })
-export class ExecutionModule {}
+export class ExecutionModule implements OnModuleInit {
+  constructor(private readonly handlerRegistry: HandlerRegistry) {}
+
+  onModuleInit() {
+    this.handlerRegistry.register({
+      getName: () => 'HTTP',
+      execute: async () => {
+        throw new Error('HTTP handler is a remote handler executed by DTP.');
+      },
+    });
+  }
+}

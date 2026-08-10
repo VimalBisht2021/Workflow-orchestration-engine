@@ -230,7 +230,7 @@ export class ExecutionEngine {
       workflowRunId: workflowRun.id,
       workflowVersion: workflowRun.workflowVersion,
       handler: definition.handler,
-      input: taskRun.input,
+      input: taskRun.input ?? definition.configuration,
       retryPolicy:
         definition.maxRetries > 0
           ? {

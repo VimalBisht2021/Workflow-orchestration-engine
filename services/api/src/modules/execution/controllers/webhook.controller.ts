@@ -245,6 +245,8 @@ export class WebhookController {
       .createHmac('sha256', this.webhookSecret)
       .update(rawBody)
       .digest('hex');
+    this.logger.warn(`Expected Signature: ${expectedSignature}, Received: ${signature}`);
+    this.logger.warn(`Raw body string: ${rawBody.toString('utf8')}`);
     return crypto.timingSafeEqual(
       Buffer.from(signature, 'hex'),
       Buffer.from(expectedSignature, 'hex'),

@@ -10,12 +10,17 @@ async function main() {
       owner: 'e2e-test',
       tasks: [
         {
-          id: 'task-1',
+          id: `task-${Date.now()}`,
           name: 'Echo Test',
           handler: 'HTTP', // Uses DTP HTTP worker
           dependencies: [],
           timeoutMs: 10000,
-          retries: 0,
+          maxRetries: 0,
+          configuration: {
+            method: 'GET',
+            url: 'http://host.docker.internal:8080/',
+            headers: { 'x-test': 'hello-e2e' }
+          }
         }
       ]
     })
@@ -30,7 +35,7 @@ async function main() {
   console.log('Workflow created:', workflow.id);
 
   console.log('Starting workflow run...');
-  const runRes = await fetch(`http://localhost:3000/workflows/${workflow.id}/runs`, {
+  const runRes = await fetch(`http://localhost:3000/workflows/${workflow.id}/execute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
