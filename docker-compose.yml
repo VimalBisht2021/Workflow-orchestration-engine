@@ -26,8 +26,8 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/workflow_db?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - DTP_BASE_URL=http://worker:4000
-      - WOE_WEBHOOK_URL=http://api:3000/webhooks/tasks/events
+      - DTP_BASE_URL=http://host.docker.internal:4001
+      - WOE_WEBHOOK_URL=http://host.docker.internal:3000/api/webhooks/tasks/events
 
   dashboard:
     build:
@@ -40,16 +40,6 @@ services:
       - api
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:3000
-
-  worker:
-    build:
-      context: services/mock-worker
-      dockerfile: Dockerfile
-    restart: always
-    ports:
-      - '4000:4000'
-    depends_on:
-      - api
 
   redis:
     image: redis:7-alpine

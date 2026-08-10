@@ -92,6 +92,8 @@ model WorkflowRun {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([workflowId, status])
 }
 
 model TaskRun {
@@ -114,6 +116,9 @@ model TaskRun {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([workflowRunId])
+  @@index([status])
 }
 
 /// Stores processed webhook event IDs for idempotency.

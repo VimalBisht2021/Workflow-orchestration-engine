@@ -1,4 +1,5 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { trace } from '@opentelemetry/api';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { WorkflowRepository } from '../../workflow/repositories/workflow.repository';
 import { WORKFLOW_REPOSITORY } from '../../workflow/repositories/workflow.repository';
@@ -216,7 +217,13 @@ export class ExecutionEngine {
       );
     }
 
+    const activeSpan = trace.getActiveSpan();
+    const traceparent = activeSpan 
+      ? `00-${activeSpan.spanContext().traceId}-${activeSpan.spanContext().spanId}-0${activeSpan.spanContext().traceFlags.toString(16).padStart(2, '0')}`
+      : undefined;
+
     return {
+      idempotencyKey: `${workflowRun.id}:${taskRun.id}`,
       taskRunId: taskRun.id,
       workflowRunId: workflowRun.id,
       workflowVersion: workflowRun.workflowVersion,
@@ -232,6 +239,7 @@ export class ExecutionEngine {
           : null,
       timeoutMs: definition.timeoutMs ?? null,
       correlationId: `corr-${workflowRun.id}`,
+      traceparent,
       capabilities: {},
     };
   }

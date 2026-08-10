@@ -9,6 +9,7 @@ export interface ExecutionClientConfig {
 export class DispatchRequestMapper {
   static toCreateJobDto(request: DispatchRequest, webhookUrl: string) {
     return {
+      idempotencyKey: request.idempotencyKey,
       jobType: request.handler,
       payload: {
         workflowRunId: request.workflowRunId,
@@ -48,9 +49,32 @@ export class ExecutionClient {
       body: JSON.stringify(dtpPayload),
     });
 
-    if (!response.ok) {
+    if (!response.ok && response.status !== 409) {
       const errorText = await response.text().catch(() => '');
       throw new Error(`ExecutionClient dispatch failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
+  }
+
+  /**
+   * Gets the status of a job from DTP by idempotency key
+   */
+  async getJobStatus(idempotencyKey: string): Promise<any> {
+    const url = `${this.config.baseUrl.replace(/\/$/, '')}/api/jobs/${idempotencyKey}`;
+    const response = await fetch(url, {
+      headers: {
+        'x-api-key': this.config.apiKey,
+      },
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`ExecutionClient getJobStatus failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response.json();
   }
 }

@@ -18,6 +18,7 @@ import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { ReplayService } from './services/replay.service';
 import { WebhookController } from './controllers/webhook.controller';
 import { WorkflowRunController } from './controllers/workflow-run.controller';
+import { ReconciliationService } from './services/reconciliation.service';
 
 @Module({
   imports: [PrismaModule, forwardRef(() => WorkflowModule)],
@@ -48,6 +49,7 @@ import { WorkflowRunController } from './controllers/workflow-run.controller';
       useClass: PrismaTaskRunRepository,
     },
     ReplayService,
+    ReconciliationService,
   ],
   exports: [
     ExecutionEngine,

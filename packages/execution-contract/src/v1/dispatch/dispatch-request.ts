@@ -7,6 +7,7 @@ export interface ExecutionCapabilities {
 }
 
 export interface DispatchRequest {
+  idempotencyKey: string;
   taskRunId: string;
   workflowRunId: string;
   workflowVersion: number;
