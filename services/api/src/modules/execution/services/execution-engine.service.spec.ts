@@ -88,6 +88,13 @@ class MockTaskRunRepository {
 
   async findById(id: string) {
     const run = this.runs.get(id);
+    const mockSpan = {
+      setAttribute: jest.fn(),
+      end: jest.fn(),
+      recordException: jest.fn(),
+      setStatus: jest.fn(),
+      spanContext: jest.fn().mockReturnValue({ traceId: 'test-trace-id' }),
+    };
     return run
       ? Object.assign(Object.create(Object.getPrototypeOf(run)), run)
       : null;
@@ -207,6 +214,7 @@ const stubObservability = {
   startSpan: () => ({
     setAttribute: () => {},
     end: () => {},
+    spanContext: () => ({ traceId: 'test-trace-id' }),
   }),
   recordWorkflowStart: () => {},
   recordWorkflowCompletion: () => {},

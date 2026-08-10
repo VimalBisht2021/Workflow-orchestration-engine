@@ -27,6 +27,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - DTP_BASE_URL=http://host.docker.internal:4001
+      - DTP_API_KEY=dtp-test-key
+      - WEBHOOK_SECRET=woe-test-secret
       - WOE_WEBHOOK_URL=http://host.docker.internal:3000/api/webhooks/tasks/events
     extra_hosts:
       - 'host.docker.internal:host-gateway'

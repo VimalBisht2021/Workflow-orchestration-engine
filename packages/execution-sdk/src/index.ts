@@ -59,7 +59,7 @@ export class ExecutionClient {
    * Gets the status of a job from DTP by idempotency key
    */
   async getJobStatus(idempotencyKey: string): Promise<any> {
-    const url = `${this.config.baseUrl.replace(/\/$/, '')}/api/jobs/${idempotencyKey}`;
+    const url = `${this.config.baseUrl.replace(/\/$/, '')}/api/jobs/by-idempotency-key/${idempotencyKey}`;
     const response = await fetch(url, {
       headers: {
         'x-api-key': this.config.apiKey,

@@ -102,7 +102,7 @@ class RecordingGateway implements TaskExecutionGateway {
 }
 
 const stubObservability = {
-  startSpan: () => ({ setAttribute: () => {}, end: () => {} }),
+  startSpan: () => ({ setAttribute: () => {}, end: () => {}, spanContext: () => ({ traceId: 'test-trace-id' }) }),
   recordWorkflowStart: () => {},
   recordWorkflowCompletion: () => {},
   recordWorkflowFailure: () => {},
@@ -123,6 +123,7 @@ describe('Integration: Replay After Callback', () => {
       .createHmac('sha256', WEBHOOK_SECRET)
       .update(JSON.stringify(body))
       .digest('hex');
+  const makeReq = (body: any) => ({ rawBody: Buffer.from(JSON.stringify(body)) } as any);
 
   beforeEach(() => {
     const workflowRepo = new MockWorkflowRepository();
@@ -177,19 +178,30 @@ describe('Integration: Replay After Callback', () => {
     );
 
     const mockPrisma = {
+      $transaction: jest.fn(async (cb) => cb(mockPrisma)),
+      taskRun: {
+        findUnique: jest.fn(async ({ where }) => taskRunRepo.findById(where.id)),
+        update: jest.fn(async ({ where, data }) => taskRunRepo.update(where.id, data)),
+      },
+      workflowRun: {
+        findUnique: jest.fn(async ({ where }) => workflowRunRepo.findById(where.id)),
+      },
       processedWebhookEvent: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue(undefined),
       },
     };
-    const mockConfig = { get: () => WEBHOOK_SECRET };
+    const mockConfigService = { 
+      get: () => WEBHOOK_SECRET,
+      getOrThrow: () => WEBHOOK_SECRET,
+    };
 
     webhookController = new WebhookController(
       taskRunRepo as any,
       workflowRunRepo as any,
       fakePublisher,
       mockPrisma as any,
-      mockConfig as any,
+      mockConfigService as any,
     );
 
     const workflow = new Workflow(
@@ -253,6 +265,7 @@ describe('Integration: Replay After Callback', () => {
     };
     await webhookController.handleEvent(
       makeSignature(startedEvent),
+      makeReq(startedEvent),
       startedEvent,
     );
     await delay(20);
@@ -271,7 +284,11 @@ describe('Integration: Replay After Callback', () => {
         error: 'Simulated DTP failure',
       },
     };
-    await webhookController.handleEvent(makeSignature(failEvent), failEvent);
+    await webhookController.handleEvent(
+      makeSignature(failEvent), 
+      makeReq(failEvent),
+      failEvent
+    );
     await delay(50);
 
     // Verify original run is now FAILED

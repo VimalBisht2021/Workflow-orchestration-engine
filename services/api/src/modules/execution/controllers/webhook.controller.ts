@@ -9,8 +9,8 @@ import {
   Logger,
   Inject,
   Req,
-  RawBodyRequest,
 } from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { WebhookEventDto } from '../dto/webhook-event.dto';
@@ -66,7 +66,7 @@ export class WebhookController {
 
     // WOE-3: Atomic deduplication with a single transaction
     try {
-      await this.prisma.$transaction(async (tx) => {
+      const eventToPublish = await this.prisma.$transaction(async (tx) => {
         // 2. Idempotency — atomic insert to dedup
         await tx.processedWebhookEvent.create({
           data: {
@@ -119,7 +119,7 @@ export class WebhookController {
             `TaskRun ${taskRunModel.id} is already in terminal state ` +
               `${taskRunModel.status}. Ignoring event ${body.eventId}.`,
           );
-          return;
+          return null;
         }
 
         // 7. Process the event
@@ -158,15 +158,12 @@ export class WebhookController {
               },
             });
 
-            await this.eventPublisher.publish(
-              new TaskCompletedDomainEvent(
+            return new TaskCompletedDomainEvent(
                 body.payload.workflowRunId,
                 body.payload.taskRunId,
                 body.payload.output,
                 occurredAt,
-              ),
-            );
-            break;
+              );
           }
 
           case 'TASK_FAILED': {
@@ -187,15 +184,12 @@ export class WebhookController {
               },
             });
 
-            await this.eventPublisher.publish(
-              new TaskFailedDomainEvent(
+            return new TaskFailedDomainEvent(
                 body.payload.workflowRunId,
                 body.payload.taskRunId,
                 errorMsg,
                 occurredAt,
-              ),
-            );
-            break;
+              );
           }
 
           case 'TASK_CANCELLED': {
@@ -212,18 +206,20 @@ export class WebhookController {
             });
 
             // Trigger reconciliation — cancelled tasks may unblock workflow completion
-            await this.eventPublisher.publish(
-              new TaskFailedDomainEvent(
+            return new TaskFailedDomainEvent(
                 body.payload.workflowRunId,
                 body.payload.taskRunId,
                 'Task cancelled by DTP',
                 occurredAt,
-              ),
-            );
-            break;
+              );
           }
         }
+        return null;
       });
+
+      if (eventToPublish) {
+        await this.eventPublisher.publish(eventToPublish);
+      }
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&

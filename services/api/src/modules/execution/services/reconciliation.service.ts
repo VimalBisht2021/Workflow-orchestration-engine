@@ -72,9 +72,7 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
             await this.executionClient.getJobStatus(idempotencyKey);
 
           if (!jobStatus) {
-            this.logger.warn(
-              `Job for TaskRun ${task.id} not found in DTP. Leaving as-is until idempotencyKey lookup is supported.`,
-            );
+            this.logger.warn(`TaskRun ${task.id} not found in DTP (idempotency key: ${idempotencyKey}). Leaving in PENDING state to await recovery or manual intervention.`);
             continue;
           }
 
@@ -82,7 +80,7 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
           const status = jobStatus.status;
           if (status === 'COMPLETED') {
             this.logger.log(`Reconciling TaskRun ${task.id} as COMPLETED`);
-            await this.prisma.$transaction(async (tx) => {
+            const eventToPublish = await this.prisma.$transaction(async (tx) => {
               const currentTask = await tx.taskRun.findUnique({
                 where: { id: task.id },
                 select: { status: true },
@@ -91,7 +89,7 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
                 !currentTask ||
                 ['COMPLETED', 'FAILED', 'SKIPPED'].includes(currentTask.status)
               )
-                return;
+                return null;
 
               await tx.taskRun.update({
                 where: { id: task.id },
@@ -101,15 +99,16 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
                   completedAt: new Date(jobStatus.updatedAt || Date.now()),
                 },
               });
-              await this.eventPublisher.publish(
-                new TaskCompletedDomainEvent(
+              return new TaskCompletedDomainEvent(
                   task.workflowRunId,
                   task.id,
                   jobStatus.result,
                   new Date(jobStatus.updatedAt || Date.now()),
-                ),
-              );
+                );
             });
+            if (eventToPublish) {
+              await this.eventPublisher.publish(eventToPublish);
+            }
           } else if (status === 'FAILED') {
             this.logger.log(`Reconciling TaskRun ${task.id} as FAILED`);
             const errorMsg = jobStatus.error || 'Task failed in DTP';
@@ -137,7 +136,7 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
     error: string,
     completedAt = new Date(),
   ) {
-    await this.prisma.$transaction(async (tx) => {
+    const eventToPublish = await this.prisma.$transaction(async (tx) => {
       const currentTask = await tx.taskRun.findUnique({
         where: { id: taskRunId },
         select: { status: true },
@@ -146,7 +145,7 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
         !currentTask ||
         ['COMPLETED', 'FAILED', 'SKIPPED'].includes(currentTask.status)
       )
-        return;
+        return null;
 
       await tx.taskRun.update({
         where: { id: taskRunId },
@@ -157,9 +156,10 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      await this.eventPublisher.publish(
-        new TaskFailedDomainEvent(workflowRunId, taskRunId, error, completedAt),
-      );
+      return new TaskFailedDomainEvent(workflowRunId, taskRunId, error, completedAt);
     });
+    if (eventToPublish) {
+      await this.eventPublisher.publish(eventToPublish);
+    }
   }
 }
