@@ -18,7 +18,8 @@ async function main() {
           maxRetries: 0,
           configuration: {
             method: 'GET',
-            url: 'http://host.docker.internal:8080/',
+            userId: '1',
+            url: 'https://httpbin.org/anything',
             headers: { 'x-test': 'hello-e2e' }
           }
         }
@@ -41,7 +42,7 @@ async function main() {
     body: JSON.stringify({
       input: {
         method: 'GET',
-        url: 'http://host.docker.internal:8080/',
+        url: 'https://httpbin.org/anything',
         headers: {
           'x-test': 'hello-e2e'
         }

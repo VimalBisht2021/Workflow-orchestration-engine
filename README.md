@@ -38,3 +38,10 @@ Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
 2. The Studio will automatically load a Demo ETL Pipeline.
 3. Click **Publish** to register the workflow.
 4. Navigate to **View Workflows** and trigger a run!
+
+## Security
+
+Currently, the connection between WOE and DTP is secured using a **single shared API key** via the `x-api-key` header (with the `DISPATCHER` role). 
+
+**Future Enhancements:**
+- Implement per-identity API keys with fine-grained RBAC scopes.

@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: workflow_db
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  woe-api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    restart: always
+    ports:
+      - '3000:3000'
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/workflow_db?schema=public
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DTP_BASE_URL=http://dtp-api:4000
+      - DTP_API_KEY=dtp-test-key
+      - WEBHOOK_SECRET=shared-secret-123
+      - WOE_WEBHOOK_URL=http://woe-api:3000/api/webhooks/tasks/events
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+  dtp-api:
+    build:
+      context: ../distributed-task-platform
+      dockerfile: services/api-service/Dockerfile
+      additional_contexts:
+        execution_contract_pkg: ./packages/execution-contract
+    restart: always
+    ports:
+      - '4001:4000'
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PORT=4000
+      - API_KEY=dtp-test-key
+      - WEBHOOK_SECRET=shared-secret-123
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/task_platform?schema=public
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+  dtp-worker:
+    build:
+      context: ../distributed-task-platform
+      dockerfile: services/worker-service/Dockerfile
+    restart: always
+    depends_on:
+      - redis
+      - dtp-api
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - API_URL=http://dtp-api:4000
+      - API_KEY=dtp-test-key
+      - WEBHOOK_SECRET=shared-secret-123
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/task_platform?schema=public
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+  echo:
+    image: mendhak/http-https-echo:34
+    restart: always
+    ports:
+      - '8080:8080'
+
+volumes:
+  postgres_data:
+  redis_data:
