@@ -3,6 +3,7 @@
 import React from 'react';
 import { useBuilderStore } from '../../core/state/builder-store';
 import { UpdatePropertyCommand } from '../../core/commands/node-commands';
+import { DeleteSelectionCommand } from '../../core/commands/clipboard-commands';
 import { pluginRegistry } from '../../core/plugins/plugin-registry';
 import '../../core/plugins/builtin-plugins'; // Ensure registered
 import { PluginFieldSchema } from '../../core/plugins/plugin-manifest';
@@ -14,7 +15,7 @@ const StringField = ({ field, value, onChange }: FieldProps) => (
         type="text"
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border rounded p-2 text-sm focus:ring focus:ring-blue-200 outline-none"
+        className="w-full border rounded p-2 text-sm text-slate-900 bg-white focus:ring focus:ring-blue-200 outline-none"
         placeholder={field.placeholder}
     />
 );
@@ -24,7 +25,7 @@ const NumberField = ({ field, value, onChange }: FieldProps) => (
         type="number"
         value={value ?? field.default ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-        className="w-full border rounded p-2 text-sm focus:ring focus:ring-blue-200 outline-none"
+        className="w-full border rounded p-2 text-sm text-slate-900 bg-white focus:ring focus:ring-blue-200 outline-none"
         placeholder={field.placeholder}
     />
 );
@@ -33,7 +34,7 @@ const SelectField = ({ field, value, onChange }: FieldProps) => (
     <select
         value={value ?? field.default ?? ''}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border rounded p-2 text-sm focus:ring focus:ring-blue-200 outline-none bg-white"
+        className="w-full border rounded p-2 text-sm text-slate-900 focus:ring focus:ring-blue-200 outline-none bg-white"
     >
         {field.options?.map(opt => (
             <option key={opt} value={opt}>{opt}</option>
@@ -45,7 +46,7 @@ const TextareaField = ({ field, value, onChange }: FieldProps) => (
     <textarea
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border rounded p-2 text-sm focus:ring focus:ring-blue-200 outline-none min-h-[80px] font-mono"
+        className="w-full border rounded p-2 text-sm text-slate-900 bg-white focus:ring focus:ring-blue-200 outline-none min-h-[80px] font-mono"
         placeholder={field.placeholder}
         rows={4}
     />
@@ -69,7 +70,7 @@ const JsonField = ({ field, value, onChange }: FieldProps) => {
             <textarea
                 value={value || ''}
                 onChange={(e) => handleChange(e.target.value)}
-                className={`w-full border rounded p-2 text-sm focus:ring outline-none min-h-[60px] font-mono ${
+                className={`w-full border rounded p-2 text-sm text-slate-900 bg-white focus:ring outline-none min-h-[60px] font-mono ${
                     error ? 'border-red-400 focus:ring-red-200' : 'focus:ring-blue-200'
                 }`}
                 placeholder={field.placeholder}
@@ -162,7 +163,7 @@ export const PropertyPanel = () => {
                     type="text"
                     value={node.data.name || ''}
                     onChange={handleNameChange}
-                    className="w-full border rounded p-2 text-sm focus:ring focus:ring-blue-200 outline-none"
+                    className="w-full border rounded p-2 text-sm text-slate-900 bg-white focus:ring focus:ring-blue-200 outline-none"
                     placeholder={manifest?.name || node.pluginId}
                 />
             </div>
@@ -194,10 +195,18 @@ export const PropertyPanel = () => {
 
             {/* Fallback for unknown plugins */}
             {!manifest && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700 mb-4">
                     Unknown plugin: <span className="font-mono">{node.pluginId}</span>
                 </div>
             )}
+
+            <div className="border-t my-4" />
+            <button
+                onClick={() => dispatch(new DeleteSelectionCommand([node.id]))}
+                className="w-full flex justify-center items-center px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-md text-sm font-medium transition-colors border border-red-200"
+            >
+                Delete Node
+            </button>
         </aside>
     );
 };

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@xyflow/react/dist/style.css";
-@source "../../../packages/builder/src";
+@source "../../../../packages/builder/core";
+@source "../../../../packages/builder/ui";
 
 :root {
   --background: #ffffff;

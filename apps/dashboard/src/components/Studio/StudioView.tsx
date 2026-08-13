@@ -21,16 +21,44 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
 
   const handleSave = async () => {
     setIsSaving(true);
-    // Use adapter to convert to workflow definition
     const currentState = useBuilderStore.getState();
     const data = WorkflowDefinitionAdapter.serialize(
       workflowId === 'new' ? '' : workflowId || '',
       'Draft Workflow',
       currentState
     );
+
+    // Build a reverse lookup: for each task, find which other tasks route TO it
+    const dependencyMap: Record<string, string[]> = {};
+    for (const task of (data.tasks || [])) {
+      // default route
+      if (task.routes?.default) {
+        if (!dependencyMap[task.routes.default]) dependencyMap[task.routes.default] = [];
+        dependencyMap[task.routes.default].push(task.id);
+      }
+      // conditional routes
+      if (task.routes?.conditional) {
+        for (const targetId of Object.values(task.routes.conditional)) {
+          if (!dependencyMap[targetId]) dependencyMap[targetId] = [];
+          dependencyMap[targetId].push(task.id);
+        }
+      }
+    }
+
+    // Translate builder tasks → API TaskDefinitionDto format
+    const apiTasks = (data.tasks || []).map(task => ({
+      id: task.id,
+      name: task.name || task.pluginId.replace('core/', ''),
+      handler: task.pluginId,
+      dependencies: dependencyMap[task.id] || [],
+      configuration: {
+        ...task.config,
+        routes: task.routes,
+      },
+    }));
+
     try {
       if (workflowId && workflowId !== 'new') {
-        // Just pretending to save for now or call API
         console.log('Saved', data);
       } else {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflows`, {
@@ -39,18 +67,22 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
           body: JSON.stringify({
             name: data.name || 'Untitled Workflow',
             description: 'Draft workflow from studio',
-            tasks: data.tasks || [],
-            entryTaskId: data.entryTaskId || '',
-            metadata: data.metadata || {},
+            owner: 'studio-user',
+            tasks: apiTasks,
           }),
         });
         if (res.ok) {
           const w = await res.json();
           router.push(`/studio/${w.id}`);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          console.error('Save failed:', err);
+          alert(`Save failed: ${err.message || res.statusText}`);
         }
       }
     } catch (e) {
       console.error(e);
+      alert('Failed to connect to the API');
     } finally {
       setIsSaving(false);
     }
@@ -63,13 +95,38 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
         alert('Save the workflow first');
         return;
       }
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflows/${workflowId}/publish`, {
+
+      // 1. Validate the workflow first
+      const validateRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflows/${workflowId}/validate`, {
         method: 'POST'
       });
-      alert('Published successfully');
-      router.push('/workflows');
+      
+      if (!validateRes.ok) {
+        alert('Failed to validate workflow');
+        return;
+      }
+
+      const validation = await validateRes.json();
+      if (!validation.isValid) {
+        alert(`Validation failed:\n${validation.errors?.join('\n')}`);
+        return;
+      }
+
+      // 2. Publish it
+      const publishRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflows/${workflowId}/publish`, {
+        method: 'POST'
+      });
+
+      if (publishRes.ok) {
+        alert('Published successfully');
+        router.push('/workflows');
+      } else {
+        const err = await publishRes.json().catch(() => ({}));
+        alert(`Failed to publish: ${err.message || 'Unknown error'}`);
+      }
     } catch (e) {
       console.error(e);
+      alert('Failed to connect to the API');
     } finally {
       setIsPublishing(false);
     }
@@ -115,11 +172,37 @@ export function StudioView({ workflowId }: { workflowId?: string }) {
       fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflows/${workflowId}`)
         .then(res => res.json())
         .then(data => {
+          // Translate API tasks (handler/dependencies) back to canvas nodes/edges
+          const tasks = data.taskDefinitions || [];
+          const nodes = tasks.map((t: any, i: number) => ({
+            id: t.id,
+            pluginId: t.handler,
+            type: 'task',
+            position: { x: 200 * (i % 4), y: 150 * Math.floor(i / 4) },
+            data: {
+              label: t.name,
+              type: t.handler,
+              config: t.configuration || {},
+            }
+          }));
+
+          // Rebuild edges from dependencies (dependency = upstream task)
+          const edges: any[] = [];
+          for (const t of tasks) {
+            for (const depId of (t.dependencies || [])) {
+              edges.push({
+                id: `e-${depId}-${t.id}`,
+                source: depId,
+                target: t.id,
+              });
+            }
+          }
+
           setInitialData({
             metadata: { name: data.name, description: data.description },
-            nodes: data.nodes || [],
-            edges: data.edges || [],
-            trigger: data.trigger || { type: 'manual' }
+            nodes,
+            edges,
+            trigger: { type: 'manual' }
           });
         })
         .catch(console.error);

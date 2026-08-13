@@ -4,4 +4,5 @@ export const TASK_EXECUTION_GATEWAY = 'TASK_EXECUTION_GATEWAY';
 
 export interface TaskExecutionGateway {
   dispatch(request: DispatchRequest): Promise<void>;
+  cancel(idempotencyKey: string): Promise<void>;
 }

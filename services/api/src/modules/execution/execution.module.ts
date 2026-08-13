@@ -63,11 +63,24 @@ export class ExecutionModule implements OnModuleInit {
   constructor(private readonly handlerRegistry: HandlerRegistry) {}
 
   onModuleInit() {
-    this.handlerRegistry.register({
-      getName: () => 'HTTP',
-      execute: async () => {
-        throw new Error('HTTP handler is a remote handler executed by DTP.');
-      },
-    });
+    const coreHandlers = [
+      'core/http',
+      'core/condition',
+      'core/parallel',
+      'core/join',
+      'core/email',
+      'core/ai',
+      'core/script',
+      'core/template',
+    ];
+
+    for (const handlerId of coreHandlers) {
+      this.handlerRegistry.register({
+        getName: () => handlerId,
+        execute: async () => {
+          throw new Error(`${handlerId} is a remote handler executed by DTP.`);
+        },
+      });
+    }
   }
 }

@@ -22,6 +22,7 @@ export class WorkflowQueryService {
   async findOne(id: string) {
     const workflow = await this.prisma.workflow.findUnique({
       where: { id },
+      include: { taskDefinitions: true },
     });
 
     if (!workflow) {

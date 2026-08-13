@@ -39,4 +39,13 @@ export class RemoteTaskExecutionGateway implements TaskExecutionGateway {
       throw error;
     }
   }
+
+  async cancel(idempotencyKey: string): Promise<void> {
+    this.logger.log(`Canceling task in DTP (idempotencyKey=${idempotencyKey})`);
+    try {
+      await this.client.cancelJob(idempotencyKey);
+    } catch (error) {
+      this.logger.warn(`Failed to cancel task in DTP (idempotencyKey=${idempotencyKey}): ${error.message}`);
+    }
+  }
 }

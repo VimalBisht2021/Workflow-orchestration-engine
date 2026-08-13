@@ -1,6 +1,6 @@
 # Workflow Orchestration Engine (v1.0.0)
 
-A production-grade platform for building, executing, and monitoring complex distributed workflows. Features a visual designer, parallel execution, automatic retries, and full event-sourced replay capabilities.
+A production-grade platform for building, executing, and monitoring complex distributed workflows. Features a visual designer, parallel execution, automatic retries, full event-sourced replay capabilities, and graceful workflow cancellation with fail-fast resource cleanup.
 
 ## Architecture
 

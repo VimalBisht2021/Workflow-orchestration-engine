@@ -77,4 +77,32 @@ export class ExecutionClient {
 
     return response.json();
   }
+
+  /**
+   * Cancels a job in DTP by its idempotency key.
+   */
+  async cancelJob(idempotencyKey: string): Promise<void> {
+    const job = await this.getJobStatus(idempotencyKey);
+    if (!job) {
+      return; // Job doesn't exist yet, nothing to cancel
+    }
+
+    const url = `${this.config.baseUrl.replace(/\/$/, '')}/jobs/${job.id}/cancel`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-api-key': this.config.apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      // If it's 400, the job is likely in a state that cannot be cancelled (e.g. RUNNING, COMPLETED).
+      // We can swallow this as a no-op since it's already running/done.
+      if (response.status === 400) {
+        return;
+      }
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`ExecutionClient cancelJob failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+  }
 }

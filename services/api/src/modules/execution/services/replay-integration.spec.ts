@@ -96,9 +96,17 @@ class MockTaskRunRepository {
 
 class RecordingGateway implements TaskExecutionGateway {
   public dispatches: DispatchRequest[] = [];
+  public dispatchCallbacks: Array<(req: DispatchRequest) => Promise<void>> = [];
+
   async dispatch(request: DispatchRequest): Promise<void> {
     this.dispatches.push(request);
+    const cb = this.dispatchCallbacks.shift();
+    if (cb) {
+      await cb(request);
+    }
   }
+
+  async cancel(idempotencyKey: string): Promise<void> {}
 }
 
 const stubObservability = {
@@ -163,7 +171,11 @@ describe('Integration: Replay After Callback', () => {
       new DependencyResolver(),
       handlerRegistry,
       gateway,
-      new FailFastStrategy(workflowRunRepo as any),
+      new FailFastStrategy(
+        workflowRunRepo as any,
+        gateway as any,
+        taskRunRepo as any
+      ),
       fakePublisher,
       stubObservability as any,
     );

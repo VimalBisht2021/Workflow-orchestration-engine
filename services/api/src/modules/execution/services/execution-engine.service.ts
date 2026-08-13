@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, Logger, forwardRef } from '@nestjs/common';
 import { trace } from '@opentelemetry/api';
 import * as crypto from 'crypto';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -30,6 +30,8 @@ import type { DispatchRequest } from '@local/execution-contract';
 
 @Injectable()
 export class ExecutionEngine {
+  private readonly logger = new Logger(ExecutionEngine.name);
+
   constructor(
     @Inject(WORKFLOW_REPOSITORY)
     private readonly workflowRepository: WorkflowRepository,
@@ -157,7 +159,33 @@ export class ExecutionEngine {
       return;
     }
 
-    // 2. Check if completed
+    // 2. Skip tasks on the wrong branch of completed condition nodes
+    const skippableTasks = this.dependencyResolver.getSkippableTasks(
+      workflow.tasks,
+      workflowRun.taskRuns,
+    );
+    for (const skippable of skippableTasks) {
+      const wonRace = await this.taskRunRepository.atomicUpdateStatus(
+        skippable.id,
+        'PENDING',
+        'SKIPPED',
+      );
+      if (wonRace) {
+        await this.taskRunRepository.update(skippable.id, {
+          completedAt: new Date(),
+        });
+      }
+    }
+
+    // Re-fetch if we skipped anything (status changed)
+    if (skippableTasks.length > 0) {
+      const refreshedRun = await this.workflowRunRepository.findById(workflowRunId);
+      if (refreshedRun) {
+        workflowRun.taskRuns = refreshedRun.taskRuns;
+      }
+    }
+
+    // 3. Check if completed (all tasks terminal including SKIPPED)
     const allTerminal = workflowRun.taskRuns.every((tr) => tr.isTerminal());
     if (allTerminal) {
       workflowRun.complete();
@@ -173,10 +201,15 @@ export class ExecutionEngine {
       return;
     }
 
-    // 3. Determine ready tasks and dispatch them
+    // 4. Determine ready tasks and dispatch them
     const readyTasks = this.dependencyResolver.getReadyTasks(
       workflow.tasks,
       workflowRun.taskRuns,
+    );
+
+    // Build a map of task run outputs for passing upstream data downstream
+    const runMapByDefId = new Map(
+      workflowRun.taskRuns.map((r) => [r.taskDefinitionId, r]),
     );
 
     for (const readyTask of readyTasks) {
@@ -197,6 +230,7 @@ export class ExecutionEngine {
         readyTask,
         workflowRun,
         definitionMap,
+        runMapByDefId,
       );
       await this.taskGateway.dispatch(request);
     }
@@ -211,6 +245,7 @@ export class ExecutionEngine {
     taskRun: TaskRun,
     workflowRun: WorkflowRun,
     definitionMap: Map<string, TaskDefinition>,
+    runMapByDefId: Map<string, TaskRun>,
   ): DispatchRequest {
     const definition = definitionMap.get(taskRun.taskDefinitionId);
     if (!definition) {
@@ -218,6 +253,21 @@ export class ExecutionEngine {
         `TaskDefinition ${taskRun.taskDefinitionId} not found for TaskRun ${taskRun.id}`,
       );
     }
+
+    // Collect outputs from upstream (dependency) tasks
+    const upstreamOutputs: Record<string, any> = {};
+    for (const depId of definition.dependencies) {
+      const depRun = runMapByDefId.get(depId);
+      if (depRun?.output) {
+        upstreamOutputs[depId] = depRun.output;
+      }
+    }
+
+    // Merge configuration with upstream outputs so handlers can access parent data
+    const input = {
+      ...(definition.configuration ?? {}),
+      upstreamOutputs,
+    };
 
     const activeSpan = trace.getActiveSpan();
     const traceparent = activeSpan
@@ -230,7 +280,7 @@ export class ExecutionEngine {
       workflowRunId: workflowRun.id,
       workflowVersion: workflowRun.workflowVersion,
       handler: definition.handler,
-      input: taskRun.input ?? definition.configuration,
+      input,
       retryPolicy:
         definition.maxRetries > 0
           ? {
@@ -246,4 +296,46 @@ export class ExecutionEngine {
       capabilities: {},
     };
   }
+
+  /**
+   * Cancels a running workflow and all its non-terminal tasks.
+   */
+  async cancelWorkflowRun(workflowRunId: string): Promise<void> {
+    const workflowRun = await this.workflowRunRepository.findById(workflowRunId);
+    if (!workflowRun) {
+      throw new Error(`WorkflowRun ${workflowRunId} not found.`);
+    }
+
+    if (workflowRun.isTerminal()) {
+      throw new Error(`Cannot cancel workflow run that is already in terminal state ${workflowRun.status}`);
+    }
+
+    // 1. Cancel the workflow run
+    workflowRun.cancel();
+    await this.workflowRunRepository.update(workflowRun.id, {
+      status: workflowRun.status,
+      completedAt: workflowRun.completedAt,
+    });
+
+    // 2. Iterate over tasks and cancel them in DTP, and mark them cancelled in WOE
+    for (const taskRun of workflowRun.taskRuns) {
+      if (!taskRun.isTerminal()) {
+        const idempotencyKey = `${workflowRun.id}:${taskRun.id}`;
+        // Attempt to cancel in DTP (ignoring errors if it's too late)
+        await this.taskGateway.cancel(idempotencyKey).catch(err => {
+          this.logger.warn(`Failed to cancel task ${taskRun.id} in DTP: ${err.message}`);
+        });
+
+        // Mark as cancelled locally
+        await this.taskRunRepository.atomicUpdateStatus(taskRun.id, 'PENDING', 'SKIPPED');
+        await this.taskRunRepository.atomicUpdateStatus(taskRun.id, 'SCHEDULED', 'SKIPPED');
+        await this.taskRunRepository.atomicUpdateStatus(taskRun.id, 'RUNNING', 'SKIPPED');
+        
+        await this.taskRunRepository.update(taskRun.id, {
+          completedAt: new Date(),
+        });
+      }
+    }
+  }
 }
+

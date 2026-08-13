@@ -33,6 +33,8 @@ The **Workflow Orchestration Engine (WOE)** acts as the pure control plane.
 - **Replay**: Enabling execution replays from historical terminal states while preserving immutability.
 - **Lineage**: Tracking the lineage between original and replayed executions.
 - **Scheduling Decisions**: Instructing the execution plane _what_ to run.
+- **Lifecycle & Cancellation**: Providing the ability to manually cancel running workflows, propagating abort signals to the execution plane.
+- **Fail-Fast Resource Cleanup**: Automatically aborting and marking remaining tasks as `SKIPPED` if a workflow fails.
 
 ---
 

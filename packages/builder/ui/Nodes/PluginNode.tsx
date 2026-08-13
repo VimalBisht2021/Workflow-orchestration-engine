@@ -5,7 +5,7 @@ import { Handle, Position, NodeProps } from '@xyflow/react';
 import { pluginRegistry } from '../../core/plugins/plugin-registry';
 import '../../core/plugins/builtin-plugins'; // Ensure registered
 
-export const PluginNode = ({ id, data, isConnectable }: NodeProps) => {
+export const PluginNode = ({ id, data, isConnectable, selected }: NodeProps) => {
     const pluginId = data.pluginId as string;
     const manifest = pluginRegistry.get(pluginId);
 
@@ -14,13 +14,14 @@ export const PluginNode = ({ id, data, isConnectable }: NodeProps) => {
     const border = manifest?.color.border || 'border-gray-500';
     const text = manifest?.color.text || 'text-gray-900';
     const colorClass = `${bg} ${border} ${text}`;
+    const selectionClass = selected ? 'ring-2 ring-blue-500 ring-offset-2' : '';
 
     // Derive handles from manifest
     const outputs = manifest?.handles.outputs || ['default'];
     const hasMultipleOutputs = outputs.length > 1;
 
     return (
-        <div className={`px-4 py-2 shadow-md rounded-md border-2 ${colorClass} min-w-[150px]`}>
+        <div className={`px-4 py-2 shadow-md rounded-md border-2 ${colorClass} min-w-[150px] ${selectionClass}`}>
             {/* Input Handle */}
             <Handle type="target" position={Position.Top} isConnectable={isConnectable} />
             
@@ -43,7 +44,7 @@ export const PluginNode = ({ id, data, isConnectable }: NodeProps) => {
                                     isConnectable={isConnectable}
                                 />
                                 <div
-                                    className="text-[10px] absolute"
+                                    className="text-[10px] absolute pointer-events-none font-medium"
                                     style={{ bottom: '-15px', left: `${leftPercent - 5}%` }}
                                 >
                                     {handleId.charAt(0).toUpperCase() + handleId.slice(1)}

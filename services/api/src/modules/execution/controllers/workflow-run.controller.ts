@@ -14,6 +14,8 @@ import { ReplayService } from '../services/replay.service';
 import type { WorkflowRunRepository } from '../repositories/workflow-run.repository';
 import { WORKFLOW_RUN_REPOSITORY } from '../repositories/workflow-run.repository';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { ExecutionEngineService } from '../services/execution-engine.service';
+import { BadRequestException } from '@nestjs/common';
 
 @ApiTags('workflow-runs')
 @Controller('workflow-runs')
@@ -25,6 +27,7 @@ export class WorkflowRunController {
     @Inject(WORKFLOW_RUN_REPOSITORY)
     private readonly workflowRunRepository: WorkflowRunRepository,
     private readonly prisma: PrismaService,
+    private readonly executionEngineService: ExecutionEngineService,
   ) {}
 
   @Get()
@@ -55,6 +58,23 @@ export class WorkflowRunController {
     });
     if (!run) throw new NotFoundException(`WorkflowRun ${id} not found`);
     return run;
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel a running workflow' })
+  @ApiResponse({ status: 200, description: 'The workflow run was cancelled.' })
+  async cancelRun(@Param('id') id: string) {
+    this.logger.log(`Received cancel request for WorkflowRun: ${id}`);
+    try {
+      await this.executionEngineService.cancelWorkflowRun(id);
+      return await this.findOne(id);
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        throw new NotFoundException(error.message);
+      }
+      throw new BadRequestException(error.message);
+    }
   }
 
   @Get(':id/tasks')

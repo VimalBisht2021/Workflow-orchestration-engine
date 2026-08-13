@@ -112,12 +112,35 @@ export default function RunsPage() {
                     {run.startedAt ? new Date(run.startedAt).toLocaleString() : 'Pending'}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <Link 
-                      href={`/runs/${run.id}`}
-                      className="inline-flex items-center px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md text-sm font-medium transition-colors"
-                    >
-                      View Details
-                    </Link>
+                    <div className="flex items-center justify-end space-x-2">
+                      {['RUNNING', 'SCHEDULED'].includes(run.status) && (
+                        <button 
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            if (confirm('Are you sure you want to stop this workflow?')) {
+                              try {
+                                await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflow-runs/${run.id}/cancel`, { method: 'POST' });
+                                // Refresh list
+                                fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflow-runs`)
+                                  .then(res => res.json())
+                                  .then(data => setRuns(data));
+                              } catch (err) {
+                                console.error('Failed to cancel workflow', err);
+                              }
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-md text-sm font-medium transition-colors"
+                        >
+                          Stop
+                        </button>
+                      )}
+                      <Link 
+                        href={`/runs/${run.id}`}
+                        className="inline-flex items-center px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md text-sm font-medium transition-colors"
+                      >
+                        View Details
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

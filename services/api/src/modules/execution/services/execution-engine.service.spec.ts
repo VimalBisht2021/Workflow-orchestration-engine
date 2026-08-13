@@ -151,6 +151,7 @@ class DummyHandler implements TaskHandler {
  */
 class MockTaskExecutionGateway implements TaskExecutionGateway {
   public dispatches: DispatchRequest[] = [];
+  public cancelCalls: string[] = [];
 
   constructor(
     private handlerRegistry: HandlerRegistry,
@@ -207,6 +208,10 @@ class MockTaskExecutionGateway implements TaskExecutionGateway {
       );
     }
   }
+
+  async cancel(idempotencyKey: string): Promise<void> {
+    this.cancelCalls.push(idempotencyKey);
+  }
 }
 
 // Stub observability service for tests
@@ -241,7 +246,11 @@ describe('ExecutionEngine Integration', () => {
 
     const factory = new WorkflowRunFactory();
     const resolver = new DependencyResolver();
-    const failureStrategy = new FailFastStrategy(workflowRunRepo as any);
+    const failureStrategy = new FailFastStrategy(
+      workflowRunRepo as any,
+      mockGateway,
+      taskRunRepo as any
+    );
 
     // Fake event publisher to bridge mock gateway and engine in unit tests
     let engineRef: any = null;
@@ -405,8 +414,8 @@ describe('ExecutionEngine Integration', () => {
     expect(taskA!.status).toBe(TaskRunStatus.FAILED);
     expect(taskA!.error).toBe('Task Failed');
 
-    // B was never scheduled because A failed
-    expect(taskB!.status).toBe(TaskRunStatus.PENDING);
+    // B was never scheduled because A failed, so it was marked as SKIPPED by the FailFastStrategy
+    expect(taskB!.status).toBe(TaskRunStatus.SKIPPED);
   });
 
   describe('Test 4 — Out-of-Order Events', () => {

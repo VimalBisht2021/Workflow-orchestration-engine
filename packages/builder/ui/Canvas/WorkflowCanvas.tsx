@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ReactFlow, Background, Controls, NodeChange, EdgeChange, Connection, Node, Edge, useReactFlow } from '@xyflow/react';
+import { ReactFlow, Background, Controls, NodeChange, EdgeChange, Connection, Node, Edge, useReactFlow, useNodesState, useEdgesState } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useBuilderStore } from '../../core/state/builder-store';
 import { AddNodeCommand, MoveNodeCommand } from '../../core/commands/node-commands';
@@ -18,27 +18,30 @@ export const WorkflowCanvasInner = () => {
     const { screenToFlowPosition } = useReactFlow();
     const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
 
-    // Map Domain Nodes to ReactFlow Nodes
-    const rfNodes: Node[] = nodes.map(n => ({
-        id: n.id,
-        type: 'plugin',
-        position: n.position,
-        data: { ...n.data, pluginId: n.pluginId }
-    }));
+    const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
+    const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-    // Map Domain Edges to ReactFlow Edges
-    const rfEdges: Edge[] = edges.map(e => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle,
-        targetHandle: e.targetHandle,
-        label: e.label,
-    }));
+    // Sync domain state to ReactFlow state
+    useEffect(() => {
+        setRfNodes(nodes.map(n => ({
+            id: n.id,
+            type: 'plugin',
+            position: n.position,
+            data: { ...n.data, pluginId: n.pluginId },
+            selected: selectedNodeIds.includes(n.id)
+        })));
+    }, [nodes, setRfNodes, selectedNodeIds]);
 
-    const onNodesChange = useCallback((changes: NodeChange[]) => {
-        // Real-time dragging handled by onNodeDragStop for undo/redo
-    }, []);
+    useEffect(() => {
+        setRfEdges(edges.map(e => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            sourceHandle: e.sourceHandle,
+            targetHandle: e.targetHandle,
+            label: e.label,
+        })));
+    }, [edges, setRfEdges]);
 
     const onNodeDragStop = useCallback((event: any, node: Node) => {
         const domainNode = nodes.find(n => n.id === node.id);
@@ -156,6 +159,7 @@ export const WorkflowCanvasInner = () => {
                 edges={rfEdges}
                 nodeTypes={nodeTypes}
                 onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
                 onNodeDragStop={onNodeDragStop}
                 onConnect={onConnect}
                 onEdgesDelete={onEdgesDelete}
