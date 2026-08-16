@@ -41,8 +41,12 @@ export class TaskRun {
     return this.status === TaskRunStatus.SKIPPED;
   }
 
+  isCancelled(): boolean {
+    return this.status === TaskRunStatus.CANCELLED;
+  }
+
   isTerminal(): boolean {
-    return this.isCompleted() || this.isFailed() || this.isSkipped();
+    return this.isCompleted() || this.isFailed() || this.isSkipped() || this.isCancelled();
   }
 
   schedule(queuedAt: Date = new Date()): void {
@@ -104,6 +108,18 @@ export class TaskRun {
       );
     }
     this.status = TaskRunStatus.SKIPPED;
+    this.completedAt = completedAt;
+  }
+
+  cancel(completedAt: Date = new Date()): void {
+    if (this.isTerminal() || this.isRunning()) {
+      throw new InvalidTaskRunStateTransitionError(
+        this.id,
+        this.status,
+        TaskRunStatus.CANCELLED,
+      );
+    }
+    this.status = TaskRunStatus.CANCELLED;
     this.completedAt = completedAt;
   }
 }

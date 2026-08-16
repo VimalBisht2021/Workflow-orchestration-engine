@@ -9,12 +9,19 @@ COPY pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml ./
 COPY package.json ./
 COPY tsconfig.base.json ./
+COPY packages/builder/package.json ./packages/builder/
+COPY packages/execution-contract/package.json ./packages/execution-contract/
+COPY packages/execution-sdk/package.json ./packages/execution-sdk/
+COPY packages/shared/package.json ./packages/shared/
+COPY services/api/package.json ./services/api/
+COPY prisma/schema.prisma ./prisma/
+
+RUN --mount=type=cache,id=pnpm-api,target=/pnpm/store pnpm install --frozen-lockfile
+
 COPY packages ./packages
 COPY services/api ./services/api
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN npx prisma generate
 RUN pnpm run -r build
 

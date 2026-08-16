@@ -181,8 +181,9 @@ export function StudioView({ workflowId }: { workflowId?: string }) {
             position: { x: 200 * (i % 4), y: 150 * Math.floor(i / 4) },
             data: {
               label: t.name,
+              name: t.name,
               type: t.handler,
-              config: t.configuration || {},
+              ...(t.configuration || {}),
             }
           }));
 

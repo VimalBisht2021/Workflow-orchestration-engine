@@ -75,6 +75,7 @@ const builtinPlugins: PluginManifest[] = [
         handles: { inputs: ['default'], outputs: ['default'] },
         configSchema: [
             { key: 'to', type: 'string', title: 'To', required: true, placeholder: 'recipient@example.com' },
+            { key: 'from', type: 'string', title: 'From', required: true, placeholder: 'sender@example.com' },
             { key: 'subject', type: 'string', title: 'Subject', required: true, placeholder: 'Email subject' },
             { key: 'body', type: 'textarea', title: 'Body', placeholder: 'Email body content' },
         ],

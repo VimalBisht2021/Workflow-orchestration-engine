@@ -73,6 +73,7 @@ enum TaskRunStatus {
   COMPLETED
   FAILED
   SKIPPED
+  CANCELLED
 }
 
 model WorkflowRun {

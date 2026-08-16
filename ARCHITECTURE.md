@@ -38,6 +38,22 @@ graph TD
 
 Built with NestJS and PostgreSQL. The WOE never executes a user-defined task. It resolves the DAG, dispatches tasks when dependencies are met, and idles until a webhook wakes it up. It tracks complete lineage and historical replayability.
 
+- **State Updates**: DTP workers push status updates (via HTTP or Webhooks) back to WOE.
+- **Optimistic Concurrency**: WOE uses Prisma's atomic `updateMany` to ensure state transitions (e.g., `PENDING` -> `RUNNING`) are safe against race conditions.
+
+### Cancellation Semantics
+
+- **Workflow Cancellation**: Users can cancel a running workflow via the WOE API (`POST /workflow-runs/:id/cancel`).
+- **Atomic Halting**: When cancelled, WOE halts the DAG progression immediately. Any `PENDING` or `SCHEDULED` tasks are atomically marked as `CANCELLED`.
+- **DTP Propagation**: WOE propagates the cancellation down to DTP via the `cancelJob` SDK method to halt in-flight tasks.
+
+## 7. Execution Sandbox (DTP)
+
+DTP workers execute untrusted code in a strictly isolated environment. Node's built-in `vm` module is **never** used as a security boundary.
+
+- **JavaScript Execution**: SCRIPT tasks use `isolated-vm` to run arbitrary user code in a dedicated V8 isolate with strict memory (128MB) and timeout limits.
+- **Expression Evaluation**: CONDITION expressions are evaluated securely via `expr-eval`, an AST-based mathematical expression parser, avoiding any risk of JS injection.
+
 ## 7. Execution Plane (DTP)
 
 Built with Express, Redis, and PostgreSQL. The DTP never understands workflows, DAGs, or dependencies. It treats every request as an isolated `Job` with a `type` and an opaque `payload`. It ensures workers reliably process these jobs and handles worker crashes, priority queueing, and timeouts.

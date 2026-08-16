@@ -28,7 +28,7 @@ describe('Execution Flow (e2e)', () => {
       .compile();
 
     // Enable rawBody just like main.ts
-    app = moduleFixture.createNestApplication(undefined, { rawBody: true });
+    app = moduleFixture.createNestApplication({ rawBody: true });
 
     app.useGlobalPipes(
       new ValidationPipe({
