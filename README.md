@@ -1,6 +1,8 @@
 # Workflow Orchestration Engine (v1.0.0)
 
-A production-grade platform for building, executing, and monitoring complex distributed workflows. Features a visual designer, parallel execution, automatic retries, full event-sourced replay capabilities, and graceful workflow cancellation with fail-fast resource cleanup.
+A production-grade platform for building, executing, and monitoring complex distributed workflows.
+- **Scalable**: Built for high throughput, separating orchestration state from task execution.
+- **Guaranteed Execution**: At-least-once execution semantics with idempotent retries ensure that workflows progress reliably even in the face of temporary failures. Note that side-effects (like emails or non-idempotent HTTP calls) may execute multiple times at the effect boundary.
 
 ## Architecture
 
@@ -32,7 +34,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-_Note: The first build will take a few minutes as it downloads dependencies and compiles the Next.js and NestJS applications._
+_Note: The first build will take a few minutes as it downloads dependencies and compiles the Next.js and NestJS applications. It is built specifically to address the complexities of long-running, multi-step backend processes, offering strong at-least-once guarantees with idempotent retry, flexible branching, and robust error handling._
 
 ### 4. Open the Dashboard
 
