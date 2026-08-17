@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { WorkflowController } from './controllers/workflow.controller';
 import { WorkflowCreationService } from './services/workflow-creation.service';
+import { WorkflowUpdateService } from './services/workflow-update.service';
 import { WorkflowValidationService } from './services/workflow-validation.service';
 import { WorkflowPublicationService } from './services/workflow-publication.service';
 import { WorkflowQueryService } from './services/workflow-query.service';
@@ -17,6 +18,7 @@ import { forwardRef } from '@nestjs/common';
   controllers: [WorkflowController],
   providers: [
     WorkflowCreationService,
+    WorkflowUpdateService,
     WorkflowValidationService,
     WorkflowPublicationService,
     WorkflowQueryService,

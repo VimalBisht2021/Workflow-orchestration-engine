@@ -10,12 +10,16 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
   const state = useBuilderStore();
   const [isSaving, setIsSaving] = React.useState(false);
   const [isPublishing, setIsPublishing] = React.useState(false);
+  const [workflowName, setWorkflowName] = React.useState('Draft Workflow');
   const router = useRouter();
 
   React.useEffect(() => {
     if (initialData) {
       // Very basic manual re-hydration of the store
       useBuilderStore.setState({ nodes: initialData.nodes || [], edges: initialData.edges || [] });
+      if (initialData.metadata?.name) {
+        setWorkflowName(initialData.metadata.name);
+      }
     }
   }, [initialData]);
 
@@ -24,7 +28,7 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
     const currentState = useBuilderStore.getState();
     const data = WorkflowDefinitionAdapter.serialize(
       workflowId === 'new' ? '' : workflowId || '',
-      'Draft Workflow',
+      workflowName,
       currentState
     );
 
@@ -59,13 +63,26 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
 
     try {
       if (workflowId && workflowId !== 'new') {
-        console.log('Saved', data);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflows/${workflowId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tasks: apiTasks,
+          }),
+        });
+        if (res.ok) {
+          console.log('Workflow updated successfully');
+        } else {
+          const err = await res.json().catch(() => ({}));
+          console.error('Update failed:', err);
+          alert(`Update failed: ${err.message || res.statusText}`);
+        }
       } else {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflows`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: data.name || 'Untitled Workflow',
+            name: workflowName || 'Untitled Workflow',
             description: 'Draft workflow from studio',
             owner: 'studio-user',
             tasks: apiTasks,
@@ -107,7 +124,7 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
       }
 
       const validation = await validateRes.json();
-      if (!validation.isValid) {
+      if (!validation.valid) {
         alert(`Validation failed:\n${validation.errors?.join('\n')}`);
         return;
       }
@@ -138,8 +155,17 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
         <Link href="/workflows" className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div className="font-semibold text-slate-800">
-          {workflowId === 'new' ? 'Create Workflow' : `Edit Workflow ${workflowId?.split('-')[0]}`}
+        <div className="flex flex-col">
+          <input 
+            type="text"
+            value={workflowName}
+            onChange={(e) => setWorkflowName(e.target.value)}
+            className="text-lg font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none transition-colors px-1 py-0.5"
+            placeholder="Workflow Name"
+          />
+          <span className="text-xs text-slate-500 px-1 mt-0.5">
+            {workflowId === 'new' ? 'New Workflow' : `ID: ${workflowId?.split('-')[0]}`}
+          </span>
         </div>
       </div>
       <div className="flex items-center space-x-3">
@@ -187,15 +213,27 @@ export function StudioView({ workflowId }: { workflowId?: string }) {
             }
           }));
 
-          // Rebuild edges from dependencies (dependency = upstream task)
+          // Rebuild edges from routes (so condition nodes retain their true/false handles)
           const edges: any[] = [];
           for (const t of tasks) {
-            for (const depId of (t.dependencies || [])) {
+            const routes = t.configuration?.routes;
+            if (routes?.default) {
               edges.push({
-                id: `e-${depId}-${t.id}`,
-                source: depId,
-                target: t.id,
+                id: `e-${t.id}-${routes.default}`,
+                source: t.id,
+                target: routes.default,
               });
+            }
+            if (routes?.conditional) {
+              for (const [outcome, targetId] of Object.entries(routes.conditional)) {
+                edges.push({
+                  id: `e-${t.id}-${targetId}-${outcome}`,
+                  source: t.id,
+                  target: targetId as string,
+                  sourceHandle: outcome,
+                  label: outcome,
+                });
+              }
             }
           }
 

@@ -6,13 +6,16 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { CreateWorkflowDto } from '../dto/create-workflow.dto';
+import { UpdateWorkflowDto } from '../dto/update-workflow.dto';
 import { WorkflowResponseDto } from '../dto/workflow-response.dto';
 import { WorkflowValidationResponseDto } from '../dto/workflow-validation-response.dto';
 import { WorkflowCreationService } from '../services/workflow-creation.service';
+import { WorkflowUpdateService } from '../services/workflow-update.service';
 import { WorkflowValidationService } from '../services/workflow-validation.service';
 import { WorkflowPublicationService } from '../services/workflow-publication.service';
 import { WorkflowQueryService } from '../services/workflow-query.service';
@@ -23,6 +26,7 @@ import { ExecutionEngine } from '../../execution/services/execution-engine.servi
 export class WorkflowController {
   constructor(
     private readonly workflowCreationService: WorkflowCreationService,
+    private readonly workflowUpdateService: WorkflowUpdateService,
     private readonly workflowValidationService: WorkflowValidationService,
     private readonly workflowPublicationService: WorkflowPublicationService,
     private readonly workflowQueryService: WorkflowQueryService,
@@ -65,6 +69,22 @@ export class WorkflowController {
   })
   create(@Body() dto: CreateWorkflowDto) {
     return this.workflowCreationService.create(dto);
+  }
+
+  @Put(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update an existing workflow' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'The workflow has been successfully updated.',
+    type: WorkflowResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data.',
+  })
+  update(@Param('id') id: string, @Body() dto: UpdateWorkflowDto) {
+    return this.workflowUpdateService.update(id, dto);
   }
 
   @Post(':id/validate')

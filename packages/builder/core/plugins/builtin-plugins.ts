@@ -37,7 +37,7 @@ const builtinPlugins: PluginManifest[] = [
         color: { bg: 'bg-purple-100', border: 'border-purple-500', text: 'text-purple-900' },
         handles: { inputs: ['default'], outputs: ['true', 'false'] },
         configSchema: [
-            { key: 'expression', type: 'string', title: 'Expression', default: 'variables.count > 10', required: true, placeholder: 'e.g. variables.status === "ok"' },
+            { key: 'expression', type: 'string', title: 'Expression', default: 'upstreamOutputs["node-id"].value === true', required: true, placeholder: 'e.g. upstreamOutputs["node-123"].status === "ok"' },
         ],
     },
     {

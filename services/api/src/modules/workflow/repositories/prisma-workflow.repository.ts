@@ -108,6 +108,11 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     // like deleting old ones and creating new ones. Since this is an MVP,
     // replacing the graph entirely if 'tasks' is provided is easiest:
     if (data.taskDefinitions) {
+      // Delete workflow runs first to avoid foreign key constraints on TaskRuns
+      // (TaskRuns refer to both WorkflowRun and TaskDefinition)
+      await this.prisma.workflowRun.deleteMany({
+        where: { workflowId: id },
+      });
       await this.prisma.taskDefinition.deleteMany({
         where: { workflowId: id },
       });

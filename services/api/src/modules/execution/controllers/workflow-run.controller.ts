@@ -14,7 +14,7 @@ import { ReplayService } from '../services/replay.service';
 import type { WorkflowRunRepository } from '../repositories/workflow-run.repository';
 import { WORKFLOW_RUN_REPOSITORY } from '../repositories/workflow-run.repository';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
-import { ExecutionEngineService } from '../services/execution-engine.service';
+import { ExecutionEngine } from '../services/execution-engine.service';
 import { BadRequestException } from '@nestjs/common';
 
 @ApiTags('workflow-runs')
@@ -27,7 +27,7 @@ export class WorkflowRunController {
     @Inject(WORKFLOW_RUN_REPOSITORY)
     private readonly workflowRunRepository: WorkflowRunRepository,
     private readonly prisma: PrismaService,
-    private readonly executionEngineService: ExecutionEngineService,
+    private readonly executionEngineService: ExecutionEngine,
   ) {}
 
   @Get()

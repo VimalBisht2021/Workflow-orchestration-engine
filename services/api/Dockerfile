@@ -19,10 +19,11 @@ COPY prisma/schema.prisma ./prisma/
 RUN --mount=type=cache,id=pnpm-api,target=/pnpm/store pnpm install --frozen-lockfile
 
 COPY packages ./packages
-COPY services/api ./services/api
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 RUN npx prisma generate
+
+COPY services/api ./services/api
 RUN pnpm run -r build
 
 FROM base AS runner

@@ -3,8 +3,8 @@ services:
     image: postgres:15-alpine
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: workflow_db
     ports:
       - '5433:5432'
@@ -22,7 +22,7 @@ services:
       - db
       - redis
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/workflow_db?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/workflow_db?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - DTP_BASE_URL=http://host.docker.internal:4001
@@ -68,7 +68,7 @@ services:
     ports:
       - '3002:3000'
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
     volumes:
       - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards

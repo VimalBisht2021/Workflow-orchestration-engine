@@ -256,10 +256,12 @@ export class ExecutionEngine {
 
     // Collect outputs from upstream (dependency) tasks
     const upstreamOutputs: Record<string, any> = {};
+    let previousOutput: any = null;
     for (const depId of definition.dependencies) {
       const depRun = runMapByDefId.get(depId);
       if (depRun?.output) {
         upstreamOutputs[depId] = depRun.output;
+        previousOutput = depRun.output; // Will hold the output of the last dependency
       }
     }
 
@@ -267,6 +269,7 @@ export class ExecutionEngine {
     const input = {
       ...(definition.configuration ?? {}),
       upstreamOutputs,
+      previousOutput,
     };
 
     const activeSpan = trace.getActiveSpan();
