@@ -1,24 +1,9 @@
 const fetch = globalThis.fetch;
-const http = require('http');
 
 async function main() {
   console.log('[E2E] Waiting 10 seconds for containers to be fully ready...');
   await new Promise(r => setTimeout(r, 10000));
-  const server = http.createServer((req, res) => {
-    if (req.url === '/test' && req.method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, message: 'DTP execution works!' }));
-    } else {
-      res.writeHead(404);
-      res.end();
-    }
-  });
 
-  await new Promise((resolve) => server.listen(0, resolve));
-  const port = server.address().port;
-  const testUrl = `http://host.docker.internal:${port}/test`;
-
-  console.log(`[E2E] Mock server running on port ${port}. Target URL: ${testUrl}`);
 
   try {
     console.log('[E2E] Creating workflow...');
@@ -115,8 +100,6 @@ async function main() {
           if (t.error) console.log('Error:', t.error);
         }
 
-        server.close();
-
         if (status.status === 'COMPLETED') {
           console.log('\n[E2E] 🎉 Test Passed! Workflow was successfully executed by DTP.');
           process.exit(0);
@@ -131,11 +114,9 @@ async function main() {
     }
 
     console.error('\n[E2E] ❌ Timeout waiting for workflow completion.');
-    server.close();
     process.exit(1);
   } catch (err) {
     console.error('\n[E2E] ❌ Error occurred:', err);
-    server.close();
     process.exit(1);
   }
 }

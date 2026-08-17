@@ -77,7 +77,7 @@ services:
       - API_KEY=dtp-test-key
       - WEBHOOK_SECRET=shared-secret-123
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/task_platform?schema=public
-      - DISABLE_SSRF_PROTECTION=true
+      - SSRF_ALLOWED_HOSTS=echo
     extra_hosts:
       - 'host.docker.internal:host-gateway'
 
