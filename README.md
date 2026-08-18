@@ -1,56 +1,90 @@
-# Workflow Orchestration Engine (v1.0.0)
+# Workflow Orchestration Engine (WOE)
 
-A production-grade platform for building, executing, and monitoring complex distributed workflows.
-- **Scalable**: Built for high throughput, separating orchestration state from task execution.
-- **Guaranteed Execution**: At-least-once execution semantics with idempotent retries ensure that workflows progress reliably even in the face of temporary failures. Note that side-effects (like emails or non-idempotent HTTP calls) may execute multiple times at the effect boundary.
+The **Workflow Orchestration Engine (WOE)** acts as the **Control Plane** for building, monitoring, and managing complex distributed workflows. It defines the state machine, resolves Directed Acyclic Graphs (DAGs) of dependencies, and delegates the actual heavy lifting to the Distributed Task Platform (DTP) for execution.
 
-## Architecture
+## Architecture at a Glance
 
-- **Dashboard (Next.js):** Visual Workflow Studio for designing DAGs and monitoring runs.
-- **API (NestJS):** The Control Plane for validating workflows, managing history, and communicating with the execution cluster.
-- **Worker (Mock DTP):** A mock Distributed Task Platform worker that simulates remote task execution.
-- **PostgreSQL & Redis:** Persistent storage for workflows and high-speed queues/caching.
+WOE delegates execution to the Distributed Task Platform (DTP) using an Anti-Corruption Layer (the Execution SDK):
 
-## 🚀 Quick Start (Under 5 Minutes)
+```mermaid
+graph TD
+    Dashboard["Dashboard / Visual Builder"] --> API["WOE API"]
+    API -->|"Dispatch Task"| SDK["Execution SDK"]
+    SDK -->|"CreateJobDto"| DTP["Distributed Task Platform"]
+    DTP --> Worker["DTP Workers"]
+    Worker -->|"Execute HTTP/Script"| SideEffect("External Systems")
+    Worker -.->|"HMAC Signed Webhook"| API
+```
 
-We've made evaluating this project incredibly simple. No complex local setup required.
+WOE guarantees **at-least-once execution with idempotent consumers**. Retries are configured in WOE but **executed exclusively by DTP**. Side-effects (like non-idempotent HTTP calls or sending emails) may execute multiple times at the effect boundary if transient failures occur.
 
-### 1. Clone the repository
+## 🚀 Quick Start & Setup
 
+### Prerequisites
+- Node.js 20+
+- `pnpm`
+- Docker (for PostgreSQL & Redis)
+
+### 1. Install Dependencies
 ```bash
-git clone https://github.com/your-username/workflow-orchestration-engine.git
-cd workflow-orchestration-engine
+pnpm install
 ```
 
 ### 2. Configure Environment
-
 ```bash
 cp .env.example .env
 ```
+Ensure you have the connection strings for PostgreSQL. If DTP is running locally, ensure `EXECUTION_API_KEY` matches DTP.
 
-### 3. Start the Platform
-
+### 3. Database Migration
 ```bash
-docker compose up -d --build
+pnpm prisma migrate dev
 ```
 
-_Note: The first build will take a few minutes as it downloads dependencies and compiles the Next.js and NestJS applications. It is built specifically to address the complexities of long-running, multi-step backend processes, offering strong at-least-once guarantees with idempotent retry, flexible branching, and robust error handling._
+### 4. Start Local Development Server
+```bash
+pnpm dev
+```
+The Dashboard is available at [http://localhost:3000](http://localhost:3000).
 
-### 4. Open the Dashboard
+### Hermetic E2E Test
+To verify cross-service communication without external dependencies:
+```bash
+docker compose -f docker-compose.e2e.yml up -d --build
+node e2e_success.cjs
+```
+This script will orchestrate a full test workflow. Upon success, you'll see a terminal success message, and `e2e-proof.txt` will be written to disk by the sandboxed script.
 
-Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
+---
 
-### 5. Run the Demo Workflow
+## 🎨 Creating a Workflow in the Canvas
 
-1. Click **Open Workflow Studio** from the landing page.
-2. The Studio will automatically load a Demo ETL Pipeline.
-3. Click **Publish** to register the workflow.
-4. Navigate to **View Workflows** and trigger a run!
+The Next.js Dashboard features a **Workflow Studio** for visual DAG design.
 
-## Security
+1. **Add Nodes**: Drag nodes onto the canvas. Each node requires:
+   - **Name/ID**: A unique identifier for the task.
+   - **Timeout (ms)**: Max duration before DTP marks the task as failed.
+   - **Max Retries**: The retry policy WOE will request DTP to honor.
+   - **Dependencies**: Edges connecting upstream nodes. A node only runs when all its dependencies complete successfully.
 
-Currently, the connection between WOE and DTP is secured using a **single shared API key** via the `x-api-key` header (with the `DISPATCHER` role).
+2. **Select Handlers**: Each node executes a specific action. WOE defines these handlers, but DTP actually executes them:
+   - `core/http`: Makes HTTP requests. Requires `url`, `method`.
+   - `core/condition`: Branches the workflow. Evaluates `expression` (e.g., `previousOutput.value == true`) to conditionally activate downstream routes.
+   - `core/script`: Runs arbitrary JavaScript. Requires `code`. Evaluates in an `isolated-vm` sandbox in DTP.
+   - `core/parallel` & `core/join`: Native fan-out/fan-in branching logic.
+   - `core/email`: Sends emails (Stubbed to Ethereal in DTP testing).
+   - `core/ai`: AI text generation (Stubbed mock in DTP testing).
+   - `core/template`: Evaluates text templates with JSON variables.
 
-**Future Enhancements:**
+3. **Deploy & Monitor**:
+   - Click **Validate** to ensure DAG acyclic integrity.
+   - Click **Publish** to create a new immutable version.
+   - Run the workflow and view live status transitions: `PENDING → RUNNING → COMPLETED` or `FAILED`.
+   - Workflows can be manually **Cancelled** via the UI, which will cascade cancellation signals to DTP.
 
-- Implement per-identity API keys with fine-grained RBAC scopes.
+## Replay from Checkpoint
+WOE supports **Clone-based Replay**. Instead of event sourcing, WOE implements replays by cloning the state of a terminal workflow run into a new `WorkflowRun` database record and re-dispatching from the failed node. This guarantees deterministic re-execution from the checkpoint.
+
+## Metrics & Tracing
+- **Metrics**: The dashboard metrics (like `94.2% completion rate`) are currently populated with **Demo Data** for presentation.
+- **Distributed Tracing**: Full W3C `traceparent` tracing across WOE and DTP is currently an aspirational design and partially stubbed.
