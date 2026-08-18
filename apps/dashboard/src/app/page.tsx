@@ -95,7 +95,7 @@ export default function LandingPage() {
                     <div className="text-xs text-slate-500">v1.0.0 • Published</div>
                   </div>
                 </div>
-                <Link href="/studio/demo" className="text-sm text-slate-500 hover:text-indigo-600 font-medium">Edit</Link>
+                <Link href="/workflows" className="text-sm text-slate-500 hover:text-indigo-600 font-medium">View Workflows</Link>
               </div>
             ))}
           </div>
@@ -128,7 +128,7 @@ export default function LandingPage() {
                     <div className="text-xs text-slate-500">{run.time}</div>
                   </div>
                 </div>
-                <Link href={`/runs/${i}`} className="text-sm text-slate-500 hover:text-indigo-600 font-medium">Details</Link>
+                <Link href="/runs" className="text-sm text-slate-500 hover:text-indigo-600 font-medium">View Runs</Link>
               </div>
             ))}
           </div>
