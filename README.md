@@ -46,13 +46,32 @@ Ensure you have the connection strings for PostgreSQL. If DTP is running locally
 pnpm prisma migrate dev
 ```
 
-### 4. Start Local Development Server
+### 4. Start Local Development Server (Native)
 
 ```bash
 pnpm dev
 ```
 
-The Dashboard is available at [http://localhost:3001](http://localhost:3001) (when running via Docker, or if `next dev` falls back from 3000 which is used by the API).
+_(Note: If you run natively, the API binds to port 3000 and `next dev` typically falls back to 3001)._
+
+### 5. Run Full Stack via Docker Compose (Recommended)
+
+To boot the entire platform (database, cache, API, dashboard, and observability stack) in one command:
+
+```bash
+docker compose up -d
+```
+
+**Port Mapping:**
+
+- **WOE Dashboard**: `http://localhost:3001`
+- **WOE API**: `http://localhost:3000`
+- **Postgres**: `5433`
+- **Redis**: `6379`
+- **Grafana**: `http://localhost:3002`
+- **Prometheus**: `http://localhost:9090`
+- **Jaeger UI**: `http://localhost:16686`
+- **Echo Service**: `http://localhost:8080`
 
 ### Hermetic E2E Test
 
