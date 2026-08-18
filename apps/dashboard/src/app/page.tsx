@@ -34,7 +34,7 @@ export default function LandingPage() {
           Distributed Workflow <br /> Orchestration Engine
         </h1>
         <p className="text-lg text-slate-600 mb-10 max-w-2xl mx-auto">
-          A production-grade platform for building, executing, and monitoring complex distributed workflows. Features a visual designer, parallel execution, automatic retries, and full event-sourced replay capabilities.
+          A platform for building, executing, and monitoring complex distributed workflows. Features a visual designer, parallel execution, DTP-managed retries, and clone-based replay capabilities.
         </p>
         <div className="flex justify-center space-x-4">
           <Link href="/studio" className="flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm transition-colors">
@@ -50,6 +50,9 @@ export default function LandingPage() {
 
       {/* Metrics Summary */}
       <section className="px-8 py-12 bg-white border-y border-slate-200">
+        <div className="text-center mb-6">
+          <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase bg-slate-100 px-3 py-1 rounded-full">Demo Data</span>
+        </div>
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="flex flex-col items-center p-6 bg-slate-50 rounded-xl border border-slate-100">
             <Activity className="w-8 h-8 text-blue-500 mb-3" />
@@ -74,7 +77,10 @@ export default function LandingPage() {
         {/* Recent Workflows */}
         <div>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">Recent Workflows</h2>
+            <div className="flex items-center space-x-2">
+              <h2 className="text-2xl font-bold text-slate-900">Recent Workflows</h2>
+              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase bg-slate-100 px-2 py-0.5 rounded-full">Demo</span>
+            </div>
             <Link href="/workflows" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">View all &rarr;</Link>
           </div>
           <div className="space-y-4">
@@ -98,7 +104,10 @@ export default function LandingPage() {
         {/* Recent Runs */}
         <div>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">Recent Runs</h2>
+            <div className="flex items-center space-x-2">
+              <h2 className="text-2xl font-bold text-slate-900">Recent Runs</h2>
+              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase bg-slate-100 px-2 py-0.5 rounded-full">Demo</span>
+            </div>
             <Link href="/runs" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">View all &rarr;</Link>
           </div>
           <div className="space-y-4">
@@ -130,8 +139,8 @@ export default function LandingPage() {
       <section id="features" className="px-8 py-20 bg-slate-900 text-white">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">Production-Grade Capabilities</h2>
-            <p className="text-slate-400 max-w-2xl mx-auto">Built from the ground up for high throughput, reliability, and observability.</p>
+            <h2 className="text-3xl font-bold mb-4">Core Capabilities</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto">Built from the ground up for reliability and observability.</p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -149,8 +158,8 @@ export default function LandingPage() {
             
             <div className="p-6 bg-slate-800 rounded-xl border border-slate-700">
               <ShieldCheck className="w-8 h-8 text-emerald-400 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Event-Sourced Replay</h3>
-              <p className="text-slate-400 text-sm">Every execution generates an immutable event journal, allowing you to perfectly replay failed workflows from terminal states.</p>
+              <h3 className="text-xl font-semibold mb-2">Clone-Based Replay</h3>
+              <p className="text-slate-400 text-sm">Workflows can be perfectly replayed from terminal states by cloning the execution graph, re-dispatching successful tasks' state and resuming failed branches.</p>
             </div>
           </div>
         </div>
