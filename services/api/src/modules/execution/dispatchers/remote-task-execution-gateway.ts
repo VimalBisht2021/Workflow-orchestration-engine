@@ -33,7 +33,8 @@ export class RemoteTaskExecutionGateway implements TaskExecutionGateway {
 
     try {
       await this.client.dispatch(request);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('DEBUG GATEWAY DISPATCH ERROR:', error);
       this.logger.error(`Failed to dispatch to DTP: ${error.message}`);
       // In a real system, you might enqueue this locally or throw to retry
       throw error;

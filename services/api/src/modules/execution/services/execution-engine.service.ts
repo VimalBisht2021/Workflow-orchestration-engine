@@ -95,6 +95,7 @@ export class ExecutionEngine {
 
       return workflowRun;
     } catch (error: any) {
+      console.error('DEBUG EXECUTION ERROR:', error);
       this.observabilityService.recordException(span, error);
       throw error;
     } finally {

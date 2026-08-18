@@ -66,6 +66,7 @@ export default function RunDetailsPage() {
     if (status === 'COMPLETED') return <CheckCircle className="w-5 h-5 text-emerald-500" />;
     if (status === 'FAILED') return <XCircle className="w-5 h-5 text-red-500" />;
     if (status === 'CANCELLED') return <XCircle className="w-5 h-5 text-slate-400" />;
+    if (status === 'SKIPPED') return <XCircle className="w-5 h-5 text-slate-300" />;
     return <RotateCcw className="w-5 h-5 text-amber-500 animate-spin" />;
   };
 
@@ -73,6 +74,7 @@ export default function RunDetailsPage() {
     if (status === 'COMPLETED') return 'bg-emerald-50 text-emerald-700';
     if (status === 'FAILED') return 'bg-red-50 text-red-700';
     if (status === 'CANCELLED') return 'bg-slate-100 text-slate-500';
+    if (status === 'SKIPPED') return 'bg-slate-100 text-slate-400';
     return 'bg-amber-50 text-amber-700';
   };
 
