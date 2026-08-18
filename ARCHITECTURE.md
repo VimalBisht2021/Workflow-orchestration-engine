@@ -54,16 +54,16 @@ DTP workers execute untrusted code in a strictly isolated environment. Node's bu
 - **JavaScript Execution**: SCRIPT tasks use `isolated-vm` to run arbitrary user code in a dedicated V8 isolate with strict memory (128MB) and timeout limits.
 - **Expression Evaluation**: CONDITION expressions are evaluated securely via `expr-eval`, an AST-based mathematical expression parser, avoiding any risk of JS injection.
 
-## 7. Execution Plane (DTP)
+## 8. Execution Plane (DTP)
 
 Built with Express, Redis, and PostgreSQL. The DTP never understands workflows, DAGs, or dependencies. It treats every request as an isolated `Job` with a `type` and an opaque `payload`. It ensures workers reliably process these jobs and handles worker crashes, priority queueing, and timeouts.
 
-## 8. Shared Libraries
+## 9. Shared Libraries
 
 - **`execution-contract`**: TypeScript interfaces defining the API boundary (`DispatchRequest`, `WebhookEventDto`).
 - **`execution-sdk`**: A client library that implements the Anti-Corruption Layer. It translates `DispatchRequest` into DTP's native `CreateJobDto`, ensuring WOE remains agnostic to DTP's schema evolution.
 
-## 9. Integration Flow
+## 10. Integration Flow
 
 1. WOE identifies a task is ready.
 2. WOE calls `ExecutionClient.dispatch(request)`.
@@ -74,37 +74,37 @@ Built with Express, Redis, and PostgreSQL. The DTP never understands workflows, 
 7. DTP translates the internal event into a `TASK_COMPLETED` webhook payload using `ExecutionEventMapper` and attaches a deterministic `eventId`.
 8. DTP POSTs the signed webhook to WOE.
 
-## 10. Security
+## 11. Security
 
 - **Human Access**: JWT-based authentication for UI and CLI users interacting with DTP/WOE.
 - **Machine Access**: API Keys (`x-api-key`) with HMAC SHA-256 webhook signatures (`x-signature`) for system-to-system boundary communication.
 
-## 11. Failure Recovery & Cancellation
+## 12. Failure Recovery & Cancellation
 
 - **Worker Crash**: DTP's scheduler detects inactive workers via heartbeat timeouts, recovers stranded jobs, and requeues them automatically. WOE remains oblivious to these transient faults.
 - **Webhook Failure**: DTP implements bounded retries for webhook delivery.
 - **Duplicate Delivery**: WOE tracks `processedWebhookEvent` by `eventId` in Postgres to achieve true idempotency.
 - **Workflow Cancellation**: When a user cancels a workflow (or if a task fails triggering a fail-fast halt), WOE automatically iterates over pending/running tasks. It updates its local state (marking unexecuted tasks as `SKIPPED`) and pushes cancellation signals down to DTP via the `execution-sdk` to gracefully release worker capacity.
 
-## 12. Replay & Lineage
+## 13. Replay & Lineage
 
 WOE retains the complete graph of task inputs and outputs. A workflow can be replayed from any failed node by re-dispatching identical `DispatchRequest` payloads, guaranteeing deterministic re-execution.
 
-## 13. Deployment
+## 14. Deployment
 
 The system is designed for containerized deployment (e.g., Kubernetes). WOE, DTP API, and DTP Workers scale independently.
 
-## 14. Scaling
+## 15. Scaling
 
 - **WOE**: Horizontally scalable; relies on Postgres transaction isolation.
 - **DTP API**: Stateless, horizontally scalable behind a load balancer.
 - **DTP Workers**: Independently scalable consumer group pulling from Redis queues.
 
-## 15. Observability
+## 16. Observability
 
 Each boundary transition logs deterministic trace IDs (`traceparent`, `correlationId`). Latency is tracked by capturing `dispatchedAt` in the SDK and comparing it against the execution time upon webhook receipt.
 
-## 16. Architecture Decision Records (ADRs)
+## 17. Architecture Decision Records (ADRs)
 
 ### ADR-001: Separation of Orchestration and Execution
 
