@@ -2,6 +2,9 @@ node_modules/
 dist/
 coverage/
 .env
+.env.*
+!.env.example
 .DS_Store
 .turbo/
 *.log
+temp_logs.txt
