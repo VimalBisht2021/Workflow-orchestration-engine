@@ -21,39 +21,49 @@ WOE guarantees **at-least-once execution with idempotent consumers**. Retries ar
 ## 🚀 Quick Start & Setup
 
 ### Prerequisites
+
 - Node.js 20+
 - `pnpm`
 - Docker (for PostgreSQL & Redis)
 
 ### 1. Install Dependencies
+
 ```bash
 pnpm install
 ```
 
 ### 2. Configure Environment
+
 ```bash
 cp .env.example .env
 ```
-Ensure you have the connection strings for PostgreSQL. If DTP is running locally, ensure `EXECUTION_API_KEY` matches DTP.
+
+Ensure you have the connection strings for PostgreSQL. If DTP is running locally, ensure `DTP_API_KEY` matches DTP.
 
 ### 3. Database Migration
+
 ```bash
 pnpm prisma migrate dev
 ```
 
 ### 4. Start Local Development Server
+
 ```bash
 pnpm dev
 ```
-The Dashboard is available at [http://localhost:3000](http://localhost:3000).
+
+The Dashboard is available at [http://localhost:3001](http://localhost:3001) (when running via Docker, or if `next dev` falls back from 3000 which is used by the API).
 
 ### Hermetic E2E Test
+
 To verify cross-service communication without external dependencies:
+
 ```bash
 docker compose -f docker-compose.e2e.yml up -d --build
 node e2e_success.cjs
 ```
-This script will orchestrate a full test workflow. Upon success, you'll see a terminal success message, and `e2e-proof.txt` will be written to disk by the sandboxed script.
+
+This script will orchestrate a full test workflow. Upon success, you'll see a terminal success message. You can pipe the script output to `e2e-proof.txt` (e2e_success.cjs > e2e-proof.txt) to capture the proof.
 
 ---
 
@@ -83,8 +93,10 @@ The Next.js Dashboard features a **Workflow Studio** for visual DAG design.
    - Workflows can be manually **Cancelled** via the UI, which will cascade cancellation signals to DTP.
 
 ## Replay from Checkpoint
+
 WOE supports **Clone-based Replay**. Instead of event sourcing, WOE implements replays by cloning the state of a terminal workflow run into a new `WorkflowRun` database record and re-dispatching from the failed node. This guarantees deterministic re-execution from the checkpoint.
 
 ## Metrics & Tracing
+
 - **Metrics**: The dashboard metrics (like `94.2% completion rate`) are currently populated with **Demo Data** for presentation.
 - **Distributed Tracing**: Full W3C `traceparent` tracing across WOE and DTP is currently an aspirational design and partially stubbed.
