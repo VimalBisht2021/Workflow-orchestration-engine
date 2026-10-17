@@ -72,6 +72,7 @@ describe('WebhookController', () => {
       taskRun: {
         findUnique: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       workflowRun: {
         findUnique: jest.fn(),
@@ -206,9 +207,12 @@ describe('WebhookController', () => {
 
       await controller.handleEvent(signature, { rawBody } as any, body);
 
-      expect(mockPrisma.taskRun.update).toHaveBeenCalledWith(
+      expect(mockPrisma.taskRun.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'tr-1' },
+          where: {
+            id: 'tr-1',
+            status: { notIn: ['COMPLETED', 'FAILED', 'SKIPPED', 'CANCELLED'] },
+          },
           data: expect.objectContaining({
             status: TaskRunStatus.COMPLETED,
           }),
@@ -235,9 +239,12 @@ describe('WebhookController', () => {
 
       await controller.handleEvent(signature, { rawBody } as any, body);
 
-      expect(mockPrisma.taskRun.update).toHaveBeenCalledWith(
+      expect(mockPrisma.taskRun.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'tr-1' },
+          where: {
+            id: 'tr-1',
+            status: { notIn: ['COMPLETED', 'FAILED', 'SKIPPED', 'CANCELLED'] },
+          },
           data: expect.objectContaining({
             status: TaskRunStatus.FAILED,
           }),
@@ -268,6 +275,58 @@ describe('WebhookController', () => {
           }),
         }),
       );
+    });
+    describe('WOE-05: Malformed Signature Handling', () => {
+      it('should reject odd-length hex signatures without 500 error', async () => {
+        const body = makeEvent();
+        const rawBody = Buffer.from(JSON.stringify(body));
+        await expect(
+          controller.handleEvent('abcde', { rawBody } as any, body),
+        ).rejects.toThrow(UnauthorizedException);
+      });
+
+      it('should reject invalid hex characters without 500 error', async () => {
+        const body = makeEvent();
+        const rawBody = Buffer.from(JSON.stringify(body));
+        await expect(
+          controller.handleEvent(
+            'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz',
+            { rawBody } as any,
+            body,
+          ),
+        ).rejects.toThrow(UnauthorizedException);
+      });
+
+      it('should reject signature with wrong length', async () => {
+        const body = makeEvent();
+        const rawBody = Buffer.from(JSON.stringify(body));
+        await expect(
+          controller.handleEvent('1234567890abcdef', { rawBody } as any, body),
+        ).rejects.toThrow(UnauthorizedException);
+      });
+    });
+
+    describe('WOE-08: Concurrency Guard against Race Conditions', () => {
+      it('should NOT overwrite terminal state if another webhook event transitioned task first', async () => {
+        const body = makeEvent({ eventType: 'TASK_COMPLETED' });
+        const rawBody = Buffer.from(JSON.stringify(body));
+        const signature = makeSignature(rawBody);
+
+        mockPrisma.taskRun.findUnique.mockResolvedValue(
+          makeTaskRunModel({ status: TaskRunStatus.RUNNING }),
+        );
+        mockPrisma.workflowRun.findUnique.mockResolvedValue(
+          makeWorkflowRunModel(),
+        );
+
+        // Simulate concurrent transition won by another thread (count: 0)
+        mockPrisma.taskRun.updateMany.mockResolvedValue({ count: 0 });
+
+        await controller.handleEvent(signature, { rawBody } as any, body);
+
+        // Should NOT emit domain event if update failed concurrency check
+        expect(mockEventPublisher.publish).not.toHaveBeenCalled();
+      });
     });
   });
 });

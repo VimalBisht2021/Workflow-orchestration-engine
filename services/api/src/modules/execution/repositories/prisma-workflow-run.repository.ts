@@ -23,6 +23,19 @@ export class PrismaWorkflowRunRepository implements WorkflowRunRepository {
         startedAt: run.startedAt,
         completedAt: run.completedAt,
         replayedFromId: run.replayedFromId ?? null,
+        taskRuns: {
+          create: (run.taskRuns || []).map((tr) => ({
+            id: tr.id,
+            taskDefinitionId: tr.taskDefinitionId,
+            status: tr.status,
+            input: tr.input ?? undefined,
+            output: tr.output ?? undefined,
+            error: tr.error ?? null,
+            queuedAt: tr.queuedAt ?? null,
+            startedAt: tr.startedAt ?? null,
+            completedAt: tr.completedAt ?? null,
+          })),
+        },
       },
       include: {
         taskRuns: true,

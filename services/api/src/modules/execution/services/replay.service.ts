@@ -70,7 +70,11 @@ export class ReplayService {
     }
 
     // 1. Create a new run using the factory — object creation stays centralized
-    const newRun = this.workflowRunFactory.create(workflow);
+    // WOE-04: Enforce replay executes using the original workflow version lineage
+    const newRun = this.workflowRunFactory.create(
+      workflow,
+      originalRun.workflowVersion,
+    );
     newRun.replayedFromId = originalRun.id;
 
     // 2. Replay historical states

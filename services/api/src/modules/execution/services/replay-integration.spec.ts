@@ -110,7 +110,11 @@ class RecordingGateway implements TaskExecutionGateway {
 }
 
 const stubObservability = {
-  startSpan: () => ({ setAttribute: () => {}, end: () => {}, spanContext: () => ({ traceId: 'test-trace-id' }) }),
+  startSpan: () => ({
+    setAttribute: () => {},
+    end: () => {},
+    spanContext: () => ({ traceId: 'test-trace-id' }),
+  }),
   recordWorkflowStart: () => {},
   recordWorkflowCompletion: () => {},
   recordWorkflowFailure: () => {},
@@ -131,7 +135,8 @@ describe('Integration: Replay After Callback', () => {
       .createHmac('sha256', WEBHOOK_SECRET)
       .update(JSON.stringify(body))
       .digest('hex');
-  const makeReq = (body: any) => ({ rawBody: Buffer.from(JSON.stringify(body)) } as any);
+  const makeReq = (body: any) =>
+    ({ rawBody: Buffer.from(JSON.stringify(body)) }) as any;
 
   beforeEach(() => {
     const workflowRepo = new MockWorkflowRepository();
@@ -171,11 +176,7 @@ describe('Integration: Replay After Callback', () => {
       new DependencyResolver(),
       handlerRegistry,
       gateway,
-      new FailFastStrategy(
-        workflowRunRepo as any,
-        gateway as any,
-        taskRunRepo as any
-      ),
+      new FailFastStrategy(workflowRunRepo as any, gateway, taskRunRepo as any),
       fakePublisher,
       stubObservability as any,
     );
@@ -192,18 +193,28 @@ describe('Integration: Replay After Callback', () => {
     const mockPrisma = {
       $transaction: jest.fn(async (cb) => cb(mockPrisma)),
       taskRun: {
-        findUnique: jest.fn(async ({ where }) => taskRunRepo.findById(where.id)),
-        update: jest.fn(async ({ where, data }) => taskRunRepo.update(where.id, data)),
+        findUnique: jest.fn(async ({ where }) =>
+          taskRunRepo.findById(where.id),
+        ),
+        update: jest.fn(async ({ where, data }) =>
+          taskRunRepo.update(where.id, data),
+        ),
+        updateMany: jest.fn(async ({ where, data }) => {
+          await taskRunRepo.update(where.id, data);
+          return { count: 1 };
+        }),
       },
       workflowRun: {
-        findUnique: jest.fn(async ({ where }) => workflowRunRepo.findById(where.id)),
+        findUnique: jest.fn(async ({ where }) =>
+          workflowRunRepo.findById(where.id),
+        ),
       },
       processedWebhookEvent: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue(undefined),
       },
     };
-    const mockConfigService = { 
+    const mockConfigService = {
       get: () => WEBHOOK_SECRET,
       getOrThrow: () => WEBHOOK_SECRET,
     };
@@ -212,7 +223,7 @@ describe('Integration: Replay After Callback', () => {
       taskRunRepo as any,
       workflowRunRepo as any,
       fakePublisher,
-      mockPrisma as any,
+      mockPrisma,
       mockConfigService as any,
     );
 
@@ -297,9 +308,9 @@ describe('Integration: Replay After Callback', () => {
       },
     };
     await webhookController.handleEvent(
-      makeSignature(failEvent), 
+      makeSignature(failEvent),
       makeReq(failEvent),
-      failEvent
+      failEvent,
     );
     await delay(50);
 

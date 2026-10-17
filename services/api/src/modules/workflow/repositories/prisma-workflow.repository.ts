@@ -108,14 +108,52 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     // like deleting old ones and creating new ones. Since this is an MVP,
     // replacing the graph entirely if 'tasks' is provided is easiest:
     if (data.taskDefinitions) {
-      // Delete workflow runs first to avoid foreign key constraints on TaskRuns
-      // (TaskRuns refer to both WorkflowRun and TaskDefinition)
-      await this.prisma.workflowRun.deleteMany({
+      // WOE-07: NEVER delete workflow runs! Preserving execution history is critical.
+      const existingTasks = await this.prisma.taskDefinition.findMany({
         where: { workflowId: id },
+        include: { _count: { select: { taskRuns: true } } },
       });
-      await this.prisma.taskDefinition.deleteMany({
-        where: { workflowId: id },
-      });
+
+      const newTasksList = partial.tasks || [];
+      const newTaskIds = new Set(newTasksList.map((t) => t.id));
+
+      for (const existing of existingTasks) {
+        if (!newTaskIds.has(existing.id) && existing._count.taskRuns === 0) {
+          await this.prisma.taskDefinition.delete({
+            where: { id: existing.id },
+          });
+        }
+      }
+
+      for (const t of newTasksList) {
+        await this.prisma.taskDefinition.upsert({
+          where: { id: t.id },
+          create: {
+            id: t.id,
+            workflowId: id,
+            name: t.name,
+            handler: t.handler,
+            dependencies: t.dependencies,
+            maxRetries: t.maxRetries,
+            retryDelayMs: t.retryDelayMs,
+            backoffStrategy: t.backoffStrategy,
+            configuration: t.configuration || undefined,
+            timeoutMs: t.timeoutMs || null,
+          },
+          update: {
+            name: t.name,
+            handler: t.handler,
+            dependencies: t.dependencies,
+            maxRetries: t.maxRetries,
+            retryDelayMs: t.retryDelayMs,
+            backoffStrategy: t.backoffStrategy,
+            configuration: t.configuration || undefined,
+            timeoutMs: t.timeoutMs || null,
+          },
+        });
+      }
+
+      delete data.taskDefinitions;
     }
 
     const updated = await this.prisma.workflow.update({

@@ -147,8 +147,13 @@ export class WebhookController {
             this.logger.log(
               `Task transitioning to COMPLETED (workflowRunId=${body.payload.workflowRunId}, taskRunId=${body.payload.taskRunId}, correlationId=${body.payload.correlationId})`,
             );
-            await tx.taskRun.update({
-              where: { id: taskRunModel.id },
+            const compUpdate = await tx.taskRun.updateMany({
+              where: {
+                id: taskRunModel.id,
+                status: {
+                  notIn: ['COMPLETED', 'FAILED', 'SKIPPED', 'CANCELLED'],
+                },
+              },
               data: {
                 status: 'COMPLETED',
                 output: body.payload.output
@@ -158,12 +163,19 @@ export class WebhookController {
               },
             });
 
-            return new TaskCompletedDomainEvent(
-                body.payload.workflowRunId,
-                body.payload.taskRunId,
-                body.payload.output,
-                occurredAt,
+            if (compUpdate.count === 0) {
+              this.logger.warn(
+                `TaskRun ${taskRunModel.id} already transitioned. Skipping duplicate terminal overwrite.`,
               );
+              return null;
+            }
+
+            return new TaskCompletedDomainEvent(
+              body.payload.workflowRunId,
+              body.payload.taskRunId,
+              body.payload.output,
+              occurredAt,
+            );
           }
 
           case 'TASK_FAILED': {
@@ -175,8 +187,13 @@ export class WebhookController {
                 ? body.payload.error
                 : JSON.stringify(body.payload.error ?? 'Unknown Error');
 
-            await tx.taskRun.update({
-              where: { id: taskRunModel.id },
+            const failUpdate = await tx.taskRun.updateMany({
+              where: {
+                id: taskRunModel.id,
+                status: {
+                  notIn: ['COMPLETED', 'FAILED', 'SKIPPED', 'CANCELLED'],
+                },
+              },
               data: {
                 status: 'FAILED',
                 error: errorMsg,
@@ -184,12 +201,19 @@ export class WebhookController {
               },
             });
 
-            return new TaskFailedDomainEvent(
-                body.payload.workflowRunId,
-                body.payload.taskRunId,
-                errorMsg,
-                occurredAt,
+            if (failUpdate.count === 0) {
+              this.logger.warn(
+                `TaskRun ${taskRunModel.id} already transitioned. Skipping duplicate terminal overwrite.`,
               );
+              return null;
+            }
+
+            return new TaskFailedDomainEvent(
+              body.payload.workflowRunId,
+              body.payload.taskRunId,
+              errorMsg,
+              occurredAt,
+            );
           }
 
           case 'TASK_CANCELLED': {
@@ -207,18 +231,24 @@ export class WebhookController {
 
             // Trigger reconciliation — cancelled tasks may unblock workflow completion
             return new TaskFailedDomainEvent(
-                body.payload.workflowRunId,
-                body.payload.taskRunId,
-                'Task cancelled by DTP',
-                occurredAt,
-              );
+              body.payload.workflowRunId,
+              body.payload.taskRunId,
+              'Task cancelled by DTP',
+              occurredAt,
+            );
           }
         }
         return null;
       });
 
       if (eventToPublish) {
-        await this.eventPublisher.publish(eventToPublish);
+        try {
+          await this.eventPublisher.publish(eventToPublish);
+        } catch (pubErr: any) {
+          this.logger.error(
+            `Failed to publish domain event for task ${body.payload.taskRunId}: ${pubErr.message}. Periodic reconciliation will recover workflow progress.`,
+          );
+        }
       }
     } catch (e) {
       if (
@@ -240,15 +270,28 @@ export class WebhookController {
     signature: string,
     rawBody: Buffer | undefined,
   ): boolean {
-    if (!signature || !rawBody) return false;
-    const expectedSignature = crypto
-      .createHmac('sha256', this.webhookSecret)
-      .update(rawBody)
-      .digest('hex');
+    if (!signature || !rawBody || typeof signature !== 'string') return false;
+    try {
+      const expectedSignature = crypto
+        .createHmac('sha256', this.webhookSecret)
+        .update(rawBody)
+        .digest('hex');
 
-    return crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
-      Buffer.from(expectedSignature, 'hex'),
-    );
+      // Check for valid hex pattern and exact length (SHA256 hex is 64 characters)
+      if (!/^[0-9a-fA-F]{64}$/.test(signature)) {
+        return false;
+      }
+
+      const sigBuf = Buffer.from(signature, 'hex');
+      const expectedBuf = Buffer.from(expectedSignature, 'hex');
+
+      if (sigBuf.length !== expectedBuf.length) {
+        return false;
+      }
+
+      return crypto.timingSafeEqual(sigBuf, expectedBuf);
+    } catch {
+      return false;
+    }
   }
 }

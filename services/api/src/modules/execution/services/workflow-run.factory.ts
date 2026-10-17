@@ -7,14 +7,14 @@ import { WorkflowRunStatus, TaskRunStatus } from '@prisma/client';
 
 @Injectable()
 export class WorkflowRunFactory {
-  create(workflow: Workflow): WorkflowRun {
+  create(workflow: Workflow, workflowVersion?: number): WorkflowRun {
     const runId = crypto.randomUUID();
     const now = new Date();
 
     const workflowRun = new WorkflowRun(
       runId,
       workflow.id,
-      workflow.version,
+      workflowVersion !== undefined ? workflowVersion : workflow.version,
       WorkflowRunStatus.PENDING,
       now, // queuedAt
       null,

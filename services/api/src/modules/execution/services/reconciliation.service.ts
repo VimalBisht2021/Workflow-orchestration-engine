@@ -72,7 +72,13 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
             await this.executionClient.getJobStatus(idempotencyKey);
 
           if (!jobStatus) {
-            this.logger.warn(`TaskRun ${task.id} not found in DTP (idempotency key: ${idempotencyKey}). Leaving in PENDING state to await recovery or manual intervention.`);
+            this.logger.warn(
+              `TaskRun ${task.id} not found in DTP. Resetting SCHEDULED task to PENDING for recovery/redispatch.`,
+            );
+            await this.prisma.taskRun.updateMany({
+              where: { id: task.id, status: 'SCHEDULED' },
+              data: { status: 'PENDING' },
+            });
             continue;
           }
 
@@ -80,32 +86,36 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
           const status = jobStatus.status;
           if (status === 'COMPLETED') {
             this.logger.log(`Reconciling TaskRun ${task.id} as COMPLETED`);
-            const eventToPublish = await this.prisma.$transaction(async (tx) => {
-              const currentTask = await tx.taskRun.findUnique({
-                where: { id: task.id },
-                select: { status: true },
-              });
-              if (
-                !currentTask ||
-                ['COMPLETED', 'FAILED', 'SKIPPED'].includes(currentTask.status)
-              )
-                return null;
+            const eventToPublish = await this.prisma.$transaction(
+              async (tx) => {
+                const currentTask = await tx.taskRun.findUnique({
+                  where: { id: task.id },
+                  select: { status: true },
+                });
+                if (
+                  !currentTask ||
+                  ['COMPLETED', 'FAILED', 'SKIPPED'].includes(
+                    currentTask.status,
+                  )
+                )
+                  return null;
 
-              await tx.taskRun.update({
-                where: { id: task.id },
-                data: {
-                  status: 'COMPLETED',
-                  output: jobStatus.result || null,
-                  completedAt: new Date(jobStatus.updatedAt || Date.now()),
-                },
-              });
-              return new TaskCompletedDomainEvent(
+                await tx.taskRun.update({
+                  where: { id: task.id },
+                  data: {
+                    status: 'COMPLETED',
+                    output: jobStatus.result || null,
+                    completedAt: new Date(jobStatus.updatedAt || Date.now()),
+                  },
+                });
+                return new TaskCompletedDomainEvent(
                   task.workflowRunId,
                   task.id,
                   jobStatus.result,
                   new Date(jobStatus.updatedAt || Date.now()),
                 );
-            });
+              },
+            );
             if (eventToPublish) {
               await this.eventPublisher.publish(eventToPublish);
             }
@@ -156,7 +166,12 @@ export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      return new TaskFailedDomainEvent(workflowRunId, taskRunId, error, completedAt);
+      return new TaskFailedDomainEvent(
+        workflowRunId,
+        taskRunId,
+        error,
+        completedAt,
+      );
     });
     if (eventToPublish) {
       await this.eventPublisher.publish(eventToPublish);

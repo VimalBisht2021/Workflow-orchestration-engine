@@ -77,6 +77,7 @@ export class ExecutionEngine {
       span.setAttribute('correlation.id', correlationId);
 
       // Persist run and task runs
+      // WOE-06: Atomic run and task-runs creation
       await this.workflowRunRepository.create(workflowRun);
       for (const tr of workflowRun.taskRuns) {
         await this.taskRunRepository.create(tr);
@@ -180,7 +181,8 @@ export class ExecutionEngine {
 
     // Re-fetch if we skipped anything (status changed)
     if (skippableTasks.length > 0) {
-      const refreshedRun = await this.workflowRunRepository.findById(workflowRunId);
+      const refreshedRun =
+        await this.workflowRunRepository.findById(workflowRunId);
       if (refreshedRun) {
         workflowRun.taskRuns = refreshedRun.taskRuns;
       }
@@ -221,9 +223,11 @@ export class ExecutionEngine {
       );
       if (!wonRace) continue;
 
-      readyTask.schedule();
+      if (readyTask.isPending()) {
+        readyTask.schedule();
+      }
       await this.taskRunRepository.update(readyTask.id, {
-        queuedAt: readyTask.queuedAt,
+        queuedAt: readyTask.queuedAt || new Date(),
       });
 
       // Construct the versioned dispatch request
@@ -233,7 +237,19 @@ export class ExecutionEngine {
         definitionMap,
         runMapByDefId,
       );
-      await this.taskGateway.dispatch(request);
+      try {
+        await this.taskGateway.dispatch(request);
+      } catch (dispatchErr: any) {
+        this.logger.error(
+          `Dispatch failed for task ${readyTask.id}, resetting to PENDING: ${dispatchErr.message}`,
+        );
+        await this.taskRunRepository.atomicUpdateStatus(
+          readyTask.id,
+          'SCHEDULED',
+          'PENDING',
+        );
+        throw dispatchErr;
+      }
     }
   }
 
@@ -305,13 +321,16 @@ export class ExecutionEngine {
    * Cancels a running workflow and all its non-terminal tasks.
    */
   async cancelWorkflowRun(workflowRunId: string): Promise<void> {
-    const workflowRun = await this.workflowRunRepository.findById(workflowRunId);
+    const workflowRun =
+      await this.workflowRunRepository.findById(workflowRunId);
     if (!workflowRun) {
       throw new Error(`WorkflowRun ${workflowRunId} not found.`);
     }
 
     if (workflowRun.isTerminal()) {
-      throw new Error(`Cannot cancel workflow run that is already in terminal state ${workflowRun.status}`);
+      throw new Error(
+        `Cannot cancel workflow run that is already in terminal state ${workflowRun.status}`,
+      );
     }
 
     // 1. Cancel the workflow run
@@ -326,20 +345,34 @@ export class ExecutionEngine {
       if (!taskRun.isTerminal()) {
         const idempotencyKey = `${workflowRun.id}:${taskRun.id}`;
         // Attempt to cancel in DTP (ignoring errors if it's too late)
-        await this.taskGateway.cancel(idempotencyKey).catch(err => {
-          this.logger.warn(`Failed to cancel task ${taskRun.id} in DTP: ${err.message}`);
+        await this.taskGateway.cancel(idempotencyKey).catch((err) => {
+          this.logger.warn(
+            `Failed to cancel task ${taskRun.id} in DTP: ${err.message}`,
+          );
         });
 
-        // Mark as cancelled locally
-        await this.taskRunRepository.atomicUpdateStatus(taskRun.id, 'PENDING', 'SKIPPED');
-        await this.taskRunRepository.atomicUpdateStatus(taskRun.id, 'SCHEDULED', 'SKIPPED');
-        await this.taskRunRepository.atomicUpdateStatus(taskRun.id, 'RUNNING', 'SKIPPED');
-        
+        // WOE-03: Mark as CANCELLED with explicit audit metadata
+        await this.taskRunRepository.atomicUpdateStatus(
+          taskRun.id,
+          'PENDING',
+          'CANCELLED',
+        );
+        await this.taskRunRepository.atomicUpdateStatus(
+          taskRun.id,
+          'SCHEDULED',
+          'CANCELLED',
+        );
+        await this.taskRunRepository.atomicUpdateStatus(
+          taskRun.id,
+          'RUNNING',
+          'CANCELLED',
+        );
+
         await this.taskRunRepository.update(taskRun.id, {
           completedAt: new Date(),
+          error: 'Task cancelled by workflow manager',
         });
       }
     }
   }
 }
-
