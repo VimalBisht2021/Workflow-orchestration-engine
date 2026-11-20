@@ -10,6 +10,7 @@ import type { TaskRunRepository } from '../repositories/task-run.repository';
 import { TASK_RUN_REPOSITORY } from '../repositories/task-run.repository';
 import { WorkflowRunFactory } from './workflow-run.factory';
 import { DependencyResolver } from './dependency-resolver.service';
+import { InputMappingResolverService } from './input-mapping-resolver.service';
 import type { TaskExecutionGateway } from '../dispatchers/task-execution-gateway.interface';
 import { TASK_EXECUTION_GATEWAY } from '../dispatchers/task-execution-gateway.interface';
 import type { FailureStrategy } from './failure-strategy.interface';
@@ -48,6 +49,7 @@ export class ExecutionEngine {
     @Inject(DOMAIN_EVENT_PUBLISHER)
     private readonly eventPublisher: DomainEventPublisher,
     private readonly observabilityService: ObservabilityService,
+    private readonly inputMappingResolver: InputMappingResolverService = new InputMappingResolverService(),
   ) {}
 
   async startWorkflow(workflowId: string): Promise<WorkflowRun> {
@@ -237,6 +239,15 @@ export class ExecutionEngine {
         definitionMap,
         runMapByDefId,
       );
+
+      // Persist the resolved input snapshot in TaskRun.input so execution history,
+      // retries, and reconciliation use consistent execution inputs.
+      readyTask.input = request.input;
+      await this.taskRunRepository.update(readyTask.id, {
+        queuedAt: readyTask.queuedAt || new Date(),
+        input: request.input,
+      });
+
       try {
         await this.taskGateway.dispatch(request);
       } catch (dispatchErr: any) {
@@ -282,9 +293,29 @@ export class ExecutionEngine {
       }
     }
 
-    // Merge configuration with upstream outputs so handlers can access parent data
+    // Resolve declared input mappings immediately before DTP dispatch
+    const resolvedMappedInputs = this.inputMappingResolver.resolve(
+      definition,
+      taskRun,
+      workflowRun,
+      definitionMap,
+      runMapByDefId,
+    );
+
+    // Collision semantics: explicit check against reserved action configuration fields
+    const reservedKeys = new Set(['code', 'language', 'url', 'method', 'template', 'expression']);
+    for (const key of Object.keys(resolvedMappedInputs)) {
+      if (reservedKeys.has(key) && definition.configuration?.[key] !== undefined) {
+        throw new Error(
+          `Input mapping collision: cannot overwrite reserved configuration property '${key}' in task '${definition.id}'.`,
+        );
+      }
+    }
+
+    // Merge configuration with resolved mapped inputs and upstream outputs
     const input = {
       ...(definition.configuration ?? {}),
+      ...resolvedMappedInputs,
       upstreamOutputs,
       previousOutput,
     };

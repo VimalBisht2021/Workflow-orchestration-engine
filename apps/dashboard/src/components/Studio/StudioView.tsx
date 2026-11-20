@@ -43,19 +43,24 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
     }
 
     // Translate builder tasks → API TaskDefinitionDto format
-    const apiTasks = (data.tasks || []).map(task => ({
-      id: task.id,
-      name: task.name || task.pluginId.replace('core/', ''),
-      handler: task.pluginId,
-      dependencies: Array.from(new Set([
-        ...(task.dependencies || []),
-        ...(edgeDependencyMap[task.id] || [])
-      ])),
-      configuration: {
-        ...task.config,
-        routes: task.routes,
-      },
-    }));
+    const apiTasks = (data.tasks || []).map(task => {
+      const mapping = task.inputMapping || task.config?.inputMapping;
+      return {
+        id: task.id,
+        name: task.name || task.pluginId.replace('core/', ''),
+        handler: task.pluginId,
+        dependencies: Array.from(new Set([
+          ...(task.dependencies || []),
+          ...(edgeDependencyMap[task.id] || [])
+        ])),
+        inputMapping: mapping,
+        configuration: {
+          ...task.config,
+          ...(mapping ? { inputMapping: mapping } : {}),
+          routes: task.routes,
+        },
+      };
+    });
 
     try {
       if (workflowId && workflowId !== 'new') {

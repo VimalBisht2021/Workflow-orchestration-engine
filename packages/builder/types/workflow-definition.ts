@@ -12,6 +12,13 @@
  *   - JSON-native transport.
  */
 
+export type InputBinding = {
+    sourceNodeId: string;
+    path: string[];
+};
+
+export type InputMapping = Record<string, InputBinding>;
+
 export interface TaskDefinition {
     /** Stable, immutable identifier (UUIDv7 recommended). */
     id: string;
@@ -24,6 +31,9 @@ export interface TaskDefinition {
 
     /** Predecessor task IDs (dependencies) */
     dependencies?: string[];
+
+    /** Resolved upstream input bindings */
+    inputMapping?: InputMapping;
 
     /** Plugin-specific configuration. Driven by PluginManifest.configSchema. */
     config: Record<string, any>;

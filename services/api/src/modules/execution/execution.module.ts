@@ -19,6 +19,7 @@ import { ReplayService } from './services/replay.service';
 import { WebhookController } from './controllers/webhook.controller';
 import { WorkflowRunController } from './controllers/workflow-run.controller';
 import { ReconciliationService } from './services/reconciliation.service';
+import { InputMappingResolverService } from './services/input-mapping-resolver.service';
 
 @Module({
   imports: [PrismaModule, forwardRef(() => WorkflowModule)],
@@ -26,6 +27,7 @@ import { ReconciliationService } from './services/reconciliation.service';
   providers: [
     ExecutionEngine,
     DependencyResolver,
+    InputMappingResolverService,
     WorkflowRunFactory,
     HandlerRegistry,
     {
@@ -53,6 +55,7 @@ import { ReconciliationService } from './services/reconciliation.service';
   ],
   exports: [
     ExecutionEngine,
+    InputMappingResolverService,
     WORKFLOW_RUN_REPOSITORY,
     TASK_RUN_REPOSITORY,
     DOMAIN_EVENT_PUBLISHER,

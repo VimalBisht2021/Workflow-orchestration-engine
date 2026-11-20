@@ -57,6 +57,9 @@ export class WorkflowUpdateService {
             t.backoffStrategy || BackoffStrategy.FIXED,
             t.configuration,
             t.timeoutMs,
+            undefined,
+            undefined,
+            t.inputMapping || t.configuration?.inputMapping,
           ),
       );
     }

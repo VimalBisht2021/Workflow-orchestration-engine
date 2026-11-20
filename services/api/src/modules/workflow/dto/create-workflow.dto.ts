@@ -12,6 +12,15 @@ import {
 import { Type } from 'class-transformer';
 import { BackoffStrategy } from '@prisma/client';
 
+export class InputBindingDto {
+  @IsString()
+  sourceNodeId: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  path: string[];
+}
+
 export class TaskDefinitionDto {
   @IsString()
   id: string;
@@ -40,6 +49,9 @@ export class TaskDefinitionDto {
 
   @IsOptional()
   configuration?: any;
+
+  @IsOptional()
+  inputMapping?: Record<string, InputBindingDto>;
 
   @IsOptional()
   @IsNumber()

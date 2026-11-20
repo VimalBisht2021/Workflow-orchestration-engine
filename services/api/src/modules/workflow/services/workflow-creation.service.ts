@@ -45,6 +45,9 @@ export class WorkflowCreationService {
             t.backoffStrategy || BackoffStrategy.FIXED,
             t.configuration,
             t.timeoutMs,
+            undefined,
+            undefined,
+            t.inputMapping || t.configuration?.inputMapping,
           ),
         );
       }
@@ -114,6 +117,25 @@ export class WorkflowCreationService {
         };
       }
 
+      // Remap inputMapping sourceNodeId to newly generated task definition IDs
+      let remappedInputMapping: Record<string, any> | undefined = undefined;
+      const rawMapping = t.inputMapping || t.configuration?.inputMapping;
+      if (rawMapping && typeof rawMapping === 'object') {
+        remappedInputMapping = {};
+        for (const [k, binding] of Object.entries(rawMapping)) {
+          remappedInputMapping[k] = {
+            ...(binding as any),
+            sourceNodeId: taskIdMap.get((binding as any).sourceNodeId) || (binding as any).sourceNodeId,
+          };
+        }
+        if (remappedConfig) {
+          remappedConfig = {
+            ...remappedConfig,
+            inputMapping: remappedInputMapping,
+          };
+        }
+      }
+
       clonedWorkflow.addTask(
         new TaskDefinition(
           taskIdMap.get(t.id) || uuid(),
@@ -125,6 +147,9 @@ export class WorkflowCreationService {
           t.backoffStrategy || BackoffStrategy.FIXED,
           remappedConfig,
           t.timeoutMs,
+          undefined,
+          undefined,
+          remappedInputMapping,
         ),
       );
     }

@@ -43,14 +43,15 @@ export class WorkflowDefinitionAdapter {
                 }
             }
 
-            // Extract config (everything in data except 'name')
-            const { name, ...config } = node.data;
+            // Extract config (everything in data except 'name' and 'inputMapping')
+            const { name, inputMapping, ...config } = node.data;
 
             return {
                 id: node.id,
                 pluginId: node.pluginId,
                 name: name || node.pluginId.replace('core/', ''),
                 dependencies,
+                inputMapping: inputMapping || config.inputMapping,
                 config,
                 routes,
             };
@@ -90,6 +91,7 @@ export class WorkflowDefinitionAdapter {
             data: {
                 name: task.name,
                 ...task.config,
+                inputMapping: task.inputMapping || task.config?.inputMapping,
             },
         }));
 

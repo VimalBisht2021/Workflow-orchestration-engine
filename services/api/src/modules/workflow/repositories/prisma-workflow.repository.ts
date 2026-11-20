@@ -47,6 +47,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
             t.timeoutMs ?? undefined,
             t.createdAt,
             t.updatedAt,
+            (t.configuration as any)?.inputMapping,
           ),
       );
     }
@@ -73,7 +74,13 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
           maxRetries: t.maxRetries,
           retryDelayMs: t.retryDelayMs,
           backoffStrategy: t.backoffStrategy,
-          configuration: t.configuration || undefined,
+          configuration:
+            t.configuration || t.inputMapping
+              ? {
+                  ...(t.configuration || {}),
+                  ...(t.inputMapping ? { inputMapping: t.inputMapping } : {}),
+                }
+              : undefined,
           timeoutMs: t.timeoutMs || null,
         })),
       };
@@ -137,7 +144,13 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
             maxRetries: t.maxRetries,
             retryDelayMs: t.retryDelayMs,
             backoffStrategy: t.backoffStrategy,
-            configuration: t.configuration || undefined,
+            configuration:
+            t.configuration || t.inputMapping
+              ? {
+                  ...(t.configuration || {}),
+                  ...(t.inputMapping ? { inputMapping: t.inputMapping } : {}),
+                }
+              : undefined,
             timeoutMs: t.timeoutMs || null,
           },
           update: {
@@ -147,7 +160,13 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
             maxRetries: t.maxRetries,
             retryDelayMs: t.retryDelayMs,
             backoffStrategy: t.backoffStrategy,
-            configuration: t.configuration || undefined,
+            configuration:
+            t.configuration || t.inputMapping
+              ? {
+                  ...(t.configuration || {}),
+                  ...(t.inputMapping ? { inputMapping: t.inputMapping } : {}),
+                }
+              : undefined,
             timeoutMs: t.timeoutMs || null,
           },
         });

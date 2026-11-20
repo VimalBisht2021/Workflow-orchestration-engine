@@ -1,5 +1,12 @@
 import { BackoffStrategy } from '@prisma/client';
 
+export type InputBinding = {
+  sourceNodeId: string;
+  path: string[];
+};
+
+export type InputMapping = Record<string, InputBinding>;
+
 export class TaskDefinition {
   constructor(
     public readonly id: string,
@@ -13,5 +20,6 @@ export class TaskDefinition {
     public readonly timeoutMs?: number,
     public readonly createdAt?: Date,
     public readonly updatedAt?: Date,
+    public readonly inputMapping?: InputMapping,
   ) {}
 }
