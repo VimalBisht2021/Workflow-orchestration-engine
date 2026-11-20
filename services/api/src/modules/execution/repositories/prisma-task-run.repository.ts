@@ -9,19 +9,22 @@ export class PrismaTaskRunRepository implements TaskRunRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(run: TaskRun): Promise<TaskRun> {
-    const created = await this.prisma.taskRun.create({
-      data: {
-        id: run.id,
-        workflowRunId: run.workflowRunId,
-        taskDefinitionId: run.taskDefinitionId,
-        status: run.status,
-        input: run.input,
-        output: run.output,
-        error: run.error,
-        queuedAt: run.queuedAt,
-        startedAt: run.startedAt,
-        completedAt: run.completedAt,
-      },
+    const data = {
+      id: run.id,
+      workflowRunId: run.workflowRunId,
+      taskDefinitionId: run.taskDefinitionId,
+      status: run.status,
+      input: run.input,
+      output: run.output,
+      error: run.error,
+      queuedAt: run.queuedAt,
+      startedAt: run.startedAt,
+      completedAt: run.completedAt,
+    };
+    const created = await this.prisma.taskRun.upsert({
+      where: { id: run.id },
+      create: data,
+      update: {},
     });
     return this.toDomain(created);
   }

@@ -42,6 +42,18 @@ services:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    restart: always
+    ports:
+      - '3001:3000'
+    depends_on:
+      - woe-api
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+
   dtp-api:
     build:
       context: ../distributed-task-platform
@@ -81,11 +93,64 @@ services:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
 
+  dtp-scheduler:
+    build:
+      context: ../distributed-task-platform
+      dockerfile: services/scheduler-service/Dockerfile
+    restart: always
+    deploy:
+      replicas: 3
+    depends_on:
+      - redis
+      - dtp-api
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/task_platform?schema=public
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+  dtp-dashboard:
+    build:
+      context: ../distributed-task-platform
+      dockerfile: apps/dashboard/Dockerfile
+      additional_contexts:
+        builder_pkg: ./packages/builder
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4001
+        NEXT_PUBLIC_LAB_SERVICE_URL: http://localhost:3006
+    restart: always
+    ports:
+      - '4002:3001'
+    depends_on:
+      - dtp-api
+
   echo:
     image: mendhak/http-https-echo:34
     restart: always
     ports:
       - '8080:8080'
+
+  lab-service:
+    build:
+      context: ../distributed-task-platform
+      dockerfile: services/lab-service/Dockerfile
+    restart: always
+    ports:
+      - '3006:3006'
+    depends_on:
+      - dtp-api
+      - redis
+    environment:
+      - PORT=3006
+      - API_URL=http://dtp-api:4000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
 
 volumes:
   postgres_data:

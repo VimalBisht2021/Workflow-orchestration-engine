@@ -3,7 +3,7 @@
 import React from 'react';
 import { useBuilderStore, WorkflowCanvas, PropertyPanel, PluginPalette, WorkflowDefinitionAdapter } from '@local/builder';
 import Link from 'next/link';
-import { ArrowLeft, Save, UploadCloud, Play, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, UploadCloud, Play, Loader2, GitBranch } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialData?: any }) {
@@ -32,20 +32,13 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
       currentState
     );
 
-    // Build a reverse lookup: for each task, find which other tasks route TO it
-    const dependencyMap: Record<string, string[]> = {};
-    for (const task of (data.tasks || [])) {
-      // default route
-      if (task.routes?.default) {
-        if (!dependencyMap[task.routes.default]) dependencyMap[task.routes.default] = [];
-        dependencyMap[task.routes.default].push(task.id);
-      }
-      // conditional routes
-      if (task.routes?.conditional) {
-        for (const targetId of Object.values(task.routes.conditional)) {
-          if (!dependencyMap[targetId]) dependencyMap[targetId] = [];
-          dependencyMap[targetId].push(task.id);
-        }
+    // Build canonical dependency map directly from ALL canvas edges:
+    // Any edge source -> target indicates target depends on source.
+    const edgeDependencyMap: Record<string, string[]> = {};
+    for (const edge of currentState.edges) {
+      if (!edgeDependencyMap[edge.target]) edgeDependencyMap[edge.target] = [];
+      if (!edgeDependencyMap[edge.target].includes(edge.source)) {
+        edgeDependencyMap[edge.target].push(edge.source);
       }
     }
 
@@ -54,7 +47,10 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
       id: task.id,
       name: task.name || task.pluginId.replace('core/', ''),
       handler: task.pluginId,
-      dependencies: dependencyMap[task.id] || [],
+      dependencies: Array.from(new Set([
+        ...(task.dependencies || []),
+        ...(edgeDependencyMap[task.id] || [])
+      ])),
       configuration: {
         ...task.config,
         routes: task.routes,
@@ -149,6 +145,30 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
     }
   };
 
+  const isPublished = initialData?.status === 'PUBLISHED';
+
+  const handleFork = async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/workflows/${workflowId}/fork`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        const forked = await res.json();
+        alert(`Workflow forked into new version v${forked.version}! Redirecting to editor...`);
+        router.push(`/studio/${forked.id}`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed to fork workflow: ${err.message || res.statusText}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to connect to the API');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-10 relative">
       <div className="flex items-center space-x-4">
@@ -159,31 +179,54 @@ function WOEToolbar({ workflowId, initialData }: { workflowId?: string, initialD
           <input 
             type="text"
             value={workflowName}
+            disabled={isPublished}
             onChange={(e) => setWorkflowName(e.target.value)}
-            className="text-lg font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none transition-colors px-1 py-0.5"
+            className={`text-lg font-semibold bg-transparent border-b border-transparent focus:outline-none transition-colors px-1 py-0.5 ${
+              isPublished ? 'text-slate-700 cursor-not-allowed' : 'text-slate-800 hover:border-slate-300 focus:border-indigo-500'
+            }`}
             placeholder="Workflow Name"
           />
-          <span className="text-xs text-slate-500 px-1 mt-0.5">
-            {workflowId === 'new' ? 'New Workflow' : `ID: ${workflowId?.split('-')[0]}`}
-          </span>
+          <div className="flex items-center space-x-2 px-1 mt-0.5">
+            <span className="text-xs text-slate-500">
+              {workflowId === 'new' ? 'New Workflow' : `ID: ${workflowId?.split('-')[0]}`}
+            </span>
+            {initialData?.status && (
+              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase ${
+                initialData.status === 'PUBLISHED' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+              }`}>
+                {initialData.status} • v{initialData.version || 1}
+              </span>
+            )}
+          </div>
         </div>
       </div>
       <div className="flex items-center space-x-3">
-        <button 
-          onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Save Draft
-        </button>
+        {isPublished ? (
+          <button 
+            onClick={handleFork}
+            disabled={isSaving}
+            className="flex items-center px-4 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <GitBranch className="w-4 h-4 mr-2" />}
+            Fork New Version
+          </button>
+        ) : (
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex items-center px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Save Draft
+          </button>
+        )}
         <button 
           onClick={handlePublish}
-          disabled={isPublishing || !workflowId || workflowId === 'new'}
+          disabled={isPublishing || !workflowId || workflowId === 'new' || isPublished}
           className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50"
         >
           {isPublishing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-          Publish
+          {isPublished ? 'Published' : 'Publish'}
         </button>
       </div>
     </div>
@@ -213,17 +256,12 @@ export function StudioView({ workflowId }: { workflowId?: string }) {
             }
           }));
 
-          // Rebuild edges from routes (so condition nodes retain their true/false handles)
+          // Rebuild edges from routes and task dependencies (faithfully restoring parallel forks and joins)
           const edges: any[] = [];
+          const existingConn = new Set<string>();
+
           for (const t of tasks) {
             const routes = t.configuration?.routes;
-            if (routes?.default) {
-              edges.push({
-                id: `e-${t.id}-${routes.default}`,
-                source: t.id,
-                target: routes.default,
-              });
-            }
             if (routes?.conditional) {
               for (const [outcome, targetId] of Object.entries(routes.conditional)) {
                 edges.push({
@@ -233,12 +271,35 @@ export function StudioView({ workflowId }: { workflowId?: string }) {
                   sourceHandle: outcome,
                   label: outcome,
                 });
+                existingConn.add(`${t.id}->${targetId}`);
+              }
+            }
+            if (routes?.default && !existingConn.has(`${t.id}->${routes.default}`)) {
+              edges.push({
+                id: `e-${t.id}-${routes.default}`,
+                source: t.id,
+                target: routes.default,
+              });
+              existingConn.add(`${t.id}->${routes.default}`);
+            }
+            if (Array.isArray(t.dependencies)) {
+              for (const depId of t.dependencies) {
+                if (!existingConn.has(`${depId}->${t.id}`)) {
+                  edges.push({
+                    id: `e-${depId}-${t.id}`,
+                    source: depId,
+                    target: t.id,
+                  });
+                  existingConn.add(`${depId}->${t.id}`);
+                }
               }
             }
           }
 
           setInitialData({
             metadata: { name: data.name, description: data.description },
+            status: data.status,
+            version: data.version,
             nodes,
             edges,
             trigger: { type: 'manual' }

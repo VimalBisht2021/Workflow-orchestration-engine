@@ -1,13 +1,13 @@
 import {
   Injectable,
-  Logger,
-  OnModuleInit,
-  OnModuleDestroy,
   Inject,
+  Logger,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
 } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
-import { ExecutionClient } from '@local/execution-sdk';
-import { ConfigService } from '@nestjs/config';
+import type { TaskExecutionGateway } from '../dispatchers/task-execution-gateway.interface';
+import { TASK_EXECUTION_GATEWAY } from '../dispatchers/task-execution-gateway.interface';
 import type { DomainEventPublisher } from '../events/domain/domain-event-publisher.interface';
 import { DOMAIN_EVENT_PUBLISHER } from '../events/domain/domain-event-publisher.interface';
 import {
@@ -16,165 +16,152 @@ import {
 } from '../events/domain/domain-events';
 
 @Injectable()
-export class ReconciliationService implements OnModuleInit, OnModuleDestroy {
+export class ReconciliationService
+  implements OnApplicationBootstrap, OnApplicationShutdown
+{
   private readonly logger = new Logger(ReconciliationService.name);
   private timer: NodeJS.Timeout | null = null;
-  private readonly executionClient: ExecutionClient;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
+    @Inject(TASK_EXECUTION_GATEWAY)
+    private readonly taskGateway: TaskExecutionGateway,
     @Inject(DOMAIN_EVENT_PUBLISHER)
     private readonly eventPublisher: DomainEventPublisher,
-  ) {
-    this.executionClient = new ExecutionClient({
-      baseUrl: this.configService.getOrThrow<string>('DTP_BASE_URL'),
-      apiKey: this.configService.getOrThrow<string>('DTP_API_KEY'),
-      webhookUrl: this.configService.get<string>('WOE_WEBHOOK_URL', ''),
-    });
-  }
+  ) {}
 
-  onModuleInit() {
-    // Run every 5 minutes
-    const intervalMs = 5 * 60 * 1000;
+  onApplicationBootstrap() {
+    // Run background reconciliation every 30 seconds
     this.timer = setInterval(() => {
-      this.reconcileStrandedTasks().catch((err) => {
-        this.logger.error(
-          `Unhandled error in reconcileStrandedTasks: ${err.message}`,
-        );
+      this.reconcileStalledTasks().catch((err) => {
+        this.logger.error(`Error during reconciliation cycle: ${err.message}`);
       });
-    }, intervalMs);
+    }, 30000);
+    this.logger.log('ReconciliationService started (polling interval: 30s)');
   }
 
-  onModuleDestroy() {
+  onApplicationShutdown() {
     if (this.timer) {
       clearInterval(this.timer);
+      this.timer = null;
     }
   }
 
-  private async reconcileStrandedTasks() {
-    this.logger.debug('Running stranded tasks reconciliation...');
-    try {
-      // Find tasks that are SCHEDULED or RUNNING and haven't been updated in 10 minutes
-      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+  /**
+   * Reconciles all tasks in SCHEDULED or RUNNING state that haven't been updated recently.
+   */
+  async reconcileStalledTasks(staleThresholdMs = 45000): Promise<number> {
+    const threshold = new Date(Date.now() - staleThresholdMs);
 
-      const strandedTasks = await this.prisma.taskRun.findMany({
-        where: {
-          status: { in: ['SCHEDULED', 'RUNNING'] },
-          updatedAt: { lt: tenMinutesAgo },
-        },
-      });
-
-      for (const task of strandedTasks) {
-        try {
-          const idempotencyKey = `${task.workflowRunId}:${task.id}`;
-          const jobStatus =
-            await this.executionClient.getJobStatus(idempotencyKey);
-
-          if (!jobStatus) {
-            this.logger.warn(
-              `TaskRun ${task.id} not found in DTP. Resetting SCHEDULED task to PENDING for recovery/redispatch.`,
-            );
-            await this.prisma.taskRun.updateMany({
-              where: { id: task.id, status: 'SCHEDULED' },
-              data: { status: 'PENDING' },
-            });
-            continue;
-          }
-
-          // Job found, check if it's terminal
-          const status = jobStatus.status;
-          if (status === 'COMPLETED') {
-            this.logger.log(`Reconciling TaskRun ${task.id} as COMPLETED`);
-            const eventToPublish = await this.prisma.$transaction(
-              async (tx) => {
-                const currentTask = await tx.taskRun.findUnique({
-                  where: { id: task.id },
-                  select: { status: true },
-                });
-                if (
-                  !currentTask ||
-                  ['COMPLETED', 'FAILED', 'SKIPPED'].includes(
-                    currentTask.status,
-                  )
-                )
-                  return null;
-
-                await tx.taskRun.update({
-                  where: { id: task.id },
-                  data: {
-                    status: 'COMPLETED',
-                    output: jobStatus.result || null,
-                    completedAt: new Date(jobStatus.updatedAt || Date.now()),
-                  },
-                });
-                return new TaskCompletedDomainEvent(
-                  task.workflowRunId,
-                  task.id,
-                  jobStatus.result,
-                  new Date(jobStatus.updatedAt || Date.now()),
-                );
-              },
-            );
-            if (eventToPublish) {
-              await this.eventPublisher.publish(eventToPublish);
-            }
-          } else if (status === 'FAILED') {
-            this.logger.log(`Reconciling TaskRun ${task.id} as FAILED`);
-            const errorMsg = jobStatus.error || 'Task failed in DTP';
-            await this.markTaskFailed(
-              task.id,
-              task.workflowRunId,
-              errorMsg,
-              new Date(jobStatus.updatedAt || Date.now()),
-            );
-          }
-        } catch (e: any) {
-          this.logger.error(
-            `Error reconciling TaskRun ${task.id}: ${e.message}`,
-          );
-        }
-      }
-    } catch (e: any) {
-      this.logger.error(`Failed to run reconciliation: ${e.message}`);
-    }
-  }
-
-  private async markTaskFailed(
-    taskRunId: string,
-    workflowRunId: string,
-    error: string,
-    completedAt = new Date(),
-  ) {
-    const eventToPublish = await this.prisma.$transaction(async (tx) => {
-      const currentTask = await tx.taskRun.findUnique({
-        where: { id: taskRunId },
-        select: { status: true },
-      });
-      if (
-        !currentTask ||
-        ['COMPLETED', 'FAILED', 'SKIPPED'].includes(currentTask.status)
-      )
-        return null;
-
-      await tx.taskRun.update({
-        where: { id: taskRunId },
-        data: {
-          status: 'FAILED',
-          error,
-          completedAt,
-        },
-      });
-
-      return new TaskFailedDomainEvent(
-        workflowRunId,
-        taskRunId,
-        error,
-        completedAt,
-      );
+    const stalledTasks = await this.prisma.taskRun.findMany({
+      where: {
+        status: { in: ['SCHEDULED', 'RUNNING'] },
+        updatedAt: { lte: threshold },
+      },
+      include: {
+        workflowRun: true,
+      },
     });
-    if (eventToPublish) {
-      await this.eventPublisher.publish(eventToPublish);
+
+    if (stalledTasks.length === 0) {
+      return 0;
+    }
+
+    this.logger.log(
+      `Found ${stalledTasks.length} stalled tasks eligible for DTP reconciliation`,
+    );
+
+    let reconciled = 0;
+    for (const task of stalledTasks) {
+      const isReconciled = await this.reconcileTask(task);
+      if (isReconciled) reconciled++;
+    }
+
+    return reconciled;
+  }
+
+  /**
+   * Reconciles a specific workflow run's active tasks on-demand.
+   */
+  async reconcileWorkflowRun(workflowRunId: string): Promise<number> {
+    const activeTasks = await this.prisma.taskRun.findMany({
+      where: {
+        workflowRunId,
+        status: { in: ['SCHEDULED', 'RUNNING'] },
+      },
+      include: {
+        workflowRun: true,
+      },
+    });
+
+    let reconciled = 0;
+    for (const task of activeTasks) {
+      const isReconciled = await this.reconcileTask(task);
+      if (isReconciled) reconciled++;
+    }
+
+    return reconciled;
+  }
+
+  private async reconcileTask(task: any): Promise<boolean> {
+    const idempotencyKey = `${task.workflowRunId}:${task.id}`;
+
+    try {
+      if (!this.taskGateway.getJobStatus) {
+        return false;
+      }
+
+      const job = await this.taskGateway.getJobStatus(idempotencyKey);
+      if (!job) {
+        return false;
+      }
+
+      if (job.status === 'COMPLETED') {
+        const output = job.result?.payload ?? job.output ?? null;
+        this.logger.log(
+          `Reconciliation: Task ${task.id} completed in DTP. Updating state.`,
+        );
+
+        await this.prisma.taskRun.update({
+          where: { id: task.id },
+          data: {
+            status: 'COMPLETED',
+            output,
+            completedAt: new Date(),
+          },
+        });
+
+        await this.eventPublisher.publish(
+          new TaskCompletedDomainEvent(task.workflowRunId, task.id, output),
+        );
+        return true;
+      } else if (job.status === 'FAILED') {
+        const error = job.failureReason ?? 'Task failed in remote execution platform';
+        this.logger.warn(
+          `Reconciliation: Task ${task.id} failed in DTP. Updating state.`,
+        );
+
+        await this.prisma.taskRun.update({
+          where: { id: task.id },
+          data: {
+            status: 'FAILED',
+            error,
+            completedAt: new Date(),
+          },
+        });
+
+        await this.eventPublisher.publish(
+          new TaskFailedDomainEvent(task.workflowRunId, task.id, error),
+        );
+        return true;
+      }
+
+      return false;
+    } catch (err: any) {
+      this.logger.debug(
+        `Failed to reconcile task ${task.id}: ${err.message}`,
+      );
+      return false;
     }
   }
 }

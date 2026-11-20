@@ -110,7 +110,7 @@ const fieldRenderers: Record<PluginFieldSchema['type'], React.FC<FieldProps>> = 
 // ─── Property Panel ─────────────────────────────────────────────────
 
 export const PropertyPanel = () => {
-    const { nodes, selectedNodeId, dispatch } = useBuilderStore();
+    const { nodes, edges, selectedNodeId, validationErrors, dispatch } = useBuilderStore();
 
     if (!selectedNodeId) {
         return (
@@ -124,6 +124,10 @@ export const PropertyPanel = () => {
     if (!node) return null;
 
     const manifest = pluginRegistry.get(node.pluginId);
+    const nodeErrors = (validationErrors || []).filter(e => e.nodeId === node.id);
+
+    const incomingEdges = edges.filter(e => e.target === node.id);
+    const upstreamNodes = nodes.filter(n => incomingEdges.some(e => e.source === n.id));
 
     const handleChange = (key: string, value: any) => {
         dispatch(new UpdatePropertyCommand(
@@ -149,12 +153,46 @@ export const PropertyPanel = () => {
                     {manifest.id} v{manifest.pluginVersion}
                 </div>
             )}
+
+            {/* Validation Errors Box */}
+            {nodeErrors.length > 0 && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-xs text-red-700">
+                    <div className="font-semibold mb-1 flex items-center">
+                        <span>⚠️ Validation Notice</span>
+                    </div>
+                    <ul className="list-disc pl-4 space-y-1">
+                        {nodeErrors.map((err, i) => (
+                            <li key={i}>{err.message}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
             
             {/* Node ID */}
             <div className="mb-4">
                 <label className="block text-xs font-medium text-slate-500 mb-1">Node ID</label>
                 <div className="text-sm font-mono bg-slate-50 p-2 rounded border select-all">{node.id}</div>
             </div>
+
+            {/* Upstream Output Bindings Helper */}
+            {upstreamNodes.length > 0 && (
+                <div className="mb-4 p-3 bg-indigo-50/70 border border-indigo-100 rounded-md text-xs">
+                    <span className="font-semibold text-indigo-900 block mb-1.5">🔗 Upstream Data References:</span>
+                    <div className="space-y-1.5 text-slate-700 font-mono text-[11px]">
+                        {upstreamNodes.map(un => (
+                            <div key={un.id} className="bg-white p-1.5 rounded border border-indigo-100 flex flex-col gap-0.5">
+                                <span className="font-sans font-medium text-slate-800 text-xs">{un.data.name || un.pluginId}</span>
+                                <code className="text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded select-all text-[10px]">
+                                    upstreamOutputs['{un.id}']
+                                </code>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-2">
+                        Tip: In scripts and conditions, use <code className="bg-white px-1 border rounded font-mono">previousOutput</code> to access direct predecessor data.
+                    </div>
+                </div>
+            )}
 
             {/* Node Name */}
             <div className="mb-4">

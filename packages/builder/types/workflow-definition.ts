@@ -22,6 +22,9 @@ export interface TaskDefinition {
     /** Human-readable label. */
     name: string;
 
+    /** Predecessor task IDs (dependencies) */
+    dependencies?: string[];
+
     /** Plugin-specific configuration. Driven by PluginManifest.configSchema. */
     config: Record<string, any>;
 

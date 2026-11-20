@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { BuilderState } from './builder-state';
 import { Command } from '../commands/Command';
 import { HistoryManager } from '../history/history-manager';
+import { BuilderValidator } from '../validation/builder-validator';
 
 interface BuilderStore extends BuilderState {
     historyManager: HistoryManager;
@@ -29,7 +30,11 @@ export const useBuilderStore = create<BuilderStore>((set, get) => ({
         set((state) => {
             const newState = command.execute(state);
             state.historyManager.push(command);
-            return newState;
+            const validationErrors = BuilderValidator.validate(newState);
+            return {
+                ...newState,
+                validationErrors,
+            };
         });
     },
     
@@ -37,7 +42,12 @@ export const useBuilderStore = create<BuilderStore>((set, get) => ({
         set((state) => {
             const command = state.historyManager.popUndo();
             if (command) {
-                return command.undo(state);
+                const newState = command.undo(state);
+                const validationErrors = BuilderValidator.validate(newState);
+                return {
+                    ...newState,
+                    validationErrors,
+                };
             }
             return state;
         });
@@ -47,7 +57,12 @@ export const useBuilderStore = create<BuilderStore>((set, get) => ({
         set((state) => {
             const command = state.historyManager.popRedo();
             if (command) {
-                return command.execute(state);
+                const newState = command.execute(state);
+                const validationErrors = BuilderValidator.validate(newState);
+                return {
+                    ...newState,
+                    validationErrors,
+                };
             }
             return state;
         });

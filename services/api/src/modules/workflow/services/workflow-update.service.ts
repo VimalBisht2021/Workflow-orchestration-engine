@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { UpdateWorkflowDto } from '../dto/update-workflow.dto';
 import { WorkflowStatus } from '../enums/workflow-status.enum';
 import { TaskDefinition } from '../entities/task-definition.entity';
@@ -22,6 +28,12 @@ export class WorkflowUpdateService {
     const existing = await this.workflowRepository.findById(id);
     if (!existing) {
       throw new NotFoundException(`Workflow with id ${id} not found`);
+    }
+
+    if (existing.status === WorkflowStatus.PUBLISHED) {
+      throw new ConflictException(
+        `Workflow ${id} is PUBLISHED and immutable. Create a new version using /workflows/${id}/fork instead.`,
+      );
     }
 
     const updateData: any = {};

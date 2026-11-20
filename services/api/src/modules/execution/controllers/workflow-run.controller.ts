@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ReplayService } from '../services/replay.service';
+import { ReconciliationService } from '../services/reconciliation.service';
 import type { WorkflowRunRepository } from '../repositories/workflow-run.repository';
 import { WORKFLOW_RUN_REPOSITORY } from '../repositories/workflow-run.repository';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
@@ -24,6 +25,7 @@ export class WorkflowRunController {
 
   constructor(
     private readonly replayService: ReplayService,
+    private readonly reconciliationService: ReconciliationService,
     @Inject(WORKFLOW_RUN_REPOSITORY)
     private readonly workflowRunRepository: WorkflowRunRepository,
     private readonly prisma: PrismaService,
@@ -77,12 +79,24 @@ export class WorkflowRunController {
     }
   }
 
+  @Post(':id/reconcile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reconcile stalled tasks for a workflow run' })
+  @ApiResponse({ status: 200, description: 'The workflow run after reconciliation.' })
+  async reconcileRun(@Param('id') id: string) {
+    this.logger.log(`Received reconcile request for WorkflowRun: ${id}`);
+    const reconciled = await this.reconciliationService.reconcileWorkflowRun(id);
+    this.logger.log(`Reconciled ${reconciled} tasks for WorkflowRun: ${id}`);
+    return await this.findOne(id);
+  }
+
   @Get(':id/tasks')
   @ApiOperation({ summary: 'Get task runs for a workflow run' })
   @ApiResponse({ status: 200, description: 'List of task runs.' })
   async getTasks(@Param('id') id: string) {
     return this.prisma.taskRun.findMany({
       where: { workflowRunId: id },
+      include: { taskDefinition: true },
       orderBy: { createdAt: 'asc' },
     });
   }

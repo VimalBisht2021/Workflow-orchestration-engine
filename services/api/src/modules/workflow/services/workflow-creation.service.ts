@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuid } from 'uuid';
 import { CreateWorkflowDto } from '../dto/create-workflow.dto';
 import { WorkflowStatus } from '../enums/workflow-status.enum';
@@ -64,6 +64,85 @@ export class WorkflowCreationService {
     return {
       ...workflow,
       createdAt: workflow.createdAt.toISOString(),
+    };
+  }
+
+  async fork(workflowId: string): Promise<WorkflowResponseDto> {
+    const existing = await this.workflowRepository.findById(workflowId);
+    if (!existing) {
+      throw new NotFoundException(`Workflow with id ${workflowId} not found`);
+    }
+
+    const newId = uuid();
+    const newVersion = (existing.version || 1) + 1;
+
+    // Create unique task IDs for the new version while preserving dependency links
+    const taskIdMap = new Map<string, string>();
+    for (const t of existing.tasks) {
+      taskIdMap.set(t.id, uuid());
+    }
+
+    const clonedWorkflow = new Workflow(
+      newId,
+      existing.name,
+      existing.description,
+      existing.owner,
+      existing.tags ?? [],
+      newVersion,
+      WorkflowStatus.DRAFT,
+      new Date(),
+    );
+
+    for (const t of existing.tasks) {
+      const remappedDependencies = (t.dependencies || []).map(
+        (depId) => taskIdMap.get(depId) || depId,
+      );
+
+      // Remap conditional routes if present
+      let remappedConfig = t.configuration;
+      if (remappedConfig?.routes?.conditional) {
+        const cond: Record<string, string> = { ...remappedConfig.routes.conditional };
+        for (const [branch, target] of Object.entries(cond)) {
+          cond[branch] = taskIdMap.get(target) || target;
+        }
+        remappedConfig = {
+          ...remappedConfig,
+          routes: {
+            ...remappedConfig.routes,
+            conditional: cond,
+          },
+        };
+      }
+
+      clonedWorkflow.addTask(
+        new TaskDefinition(
+          taskIdMap.get(t.id) || uuid(),
+          t.name,
+          t.handler,
+          remappedDependencies,
+          t.maxRetries || 0,
+          t.retryDelayMs || 1000,
+          t.backoffStrategy || BackoffStrategy.FIXED,
+          remappedConfig,
+          t.timeoutMs,
+        ),
+      );
+    }
+
+    try {
+      await this.workflowRepository.save(clonedWorkflow);
+      this.logger.log(`Workflow ${workflowId} forked into new version ${newVersion} (${newId})`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to save forked workflow ${newId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+
+    return {
+      ...clonedWorkflow,
+      createdAt: clonedWorkflow.createdAt.toISOString(),
     };
   }
 }

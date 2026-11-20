@@ -22,6 +22,8 @@ export class WorkflowDefinitionAdapter {
         // 2. Build TaskDefinition[] from nodes + edges
         const tasks: TaskDefinition[] = state.nodes.map(node => {
             const outgoingEdges = state.edges.filter(e => e.source === node.id);
+            const incomingEdges = state.edges.filter(e => e.target === node.id);
+            const dependencies = Array.from(new Set(incomingEdges.map(e => e.source)));
             const routes: TaskDefinition['routes'] = {};
 
             if (node.pluginId === 'core/condition') {
@@ -35,7 +37,7 @@ export class WorkflowDefinitionAdapter {
                     routes.conditional = conditional;
                 }
             } else {
-                // Standard or Parallel: default route is the first outgoing edge
+                // Standard or Parallel: default route is the first outgoing edge (for backward compatibility)
                 if (outgoingEdges.length > 0) {
                     routes.default = outgoingEdges[0].target;
                 }
@@ -48,6 +50,7 @@ export class WorkflowDefinitionAdapter {
                 id: node.id,
                 pluginId: node.pluginId,
                 name: name || node.pluginId.replace('core/', ''),
+                dependencies,
                 config,
                 routes,
             };
@@ -90,22 +93,14 @@ export class WorkflowDefinitionAdapter {
             },
         }));
 
-        // 2. Reconstruct CanvasEdges from routes
+        // 2. Reconstruct CanvasEdges from routes and dependencies
         const edges: CanvasEdge[] = [];
         let edgeCounter = 0;
+        const existingConnections = new Set<string>();
 
         for (const task of definition.tasks) {
-            // Default route
-            if (task.routes.default) {
-                edges.push({
-                    id: `edge-import-${edgeCounter++}`,
-                    source: task.id,
-                    target: task.routes.default,
-                });
-            }
-
             // Conditional routes
-            if (task.routes.conditional) {
+            if (task.routes?.conditional) {
                 for (const [outcome, targetId] of Object.entries(task.routes.conditional)) {
                     edges.push({
                         id: `edge-import-${edgeCounter++}`,
@@ -114,6 +109,31 @@ export class WorkflowDefinitionAdapter {
                         sourceHandle: outcome,
                         label: outcome,
                     });
+                    existingConnections.add(`${task.id}->${targetId}`);
+                }
+            }
+
+            // Default route (if present and not already added)
+            if (task.routes?.default && !existingConnections.has(`${task.id}->${task.routes.default}`)) {
+                edges.push({
+                    id: `edge-import-${edgeCounter++}`,
+                    source: task.id,
+                    target: task.routes.default,
+                });
+                existingConnections.add(`${task.id}->${task.routes.default}`);
+            }
+
+            // Reconstruct any edges from dependencies (supports all parallel fan-outs and joins)
+            if (task.dependencies) {
+                for (const depId of task.dependencies) {
+                    if (!existingConnections.has(`${depId}->${task.id}`)) {
+                        edges.push({
+                            id: `edge-import-${edgeCounter++}`,
+                            source: depId,
+                            target: task.id,
+                        });
+                        existingConnections.add(`${depId}->${task.id}`);
+                    }
                 }
             }
         }

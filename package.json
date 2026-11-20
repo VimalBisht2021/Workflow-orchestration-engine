@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "turbo run clean",
-    "prepare": "husky"
+    "prepare": "husky",
+    "autoscale": "node scripts/autoscaler.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",

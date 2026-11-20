@@ -55,6 +55,22 @@ export class WorkflowController {
     return this.executionEngine.startWorkflow(id);
   }
 
+  @Post(':id/fork')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Fork an existing workflow into a new draft version' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'The workflow has been successfully forked into a new draft version.',
+    type: WorkflowResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Workflow not found.',
+  })
+  fork(@Param('id') id: string) {
+    return this.workflowCreationService.fork(id);
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new workflow definition' })
