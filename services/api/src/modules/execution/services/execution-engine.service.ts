@@ -251,8 +251,11 @@ export class ExecutionEngine {
           error: prepErr.message,
           completedAt: new Date(),
         });
-        await this.failureStrategy.handleTaskFailure(readyTask, workflowRun);
-        continue;
+        await this.failureStrategy.handleWorkflowFailure(workflowRun);
+        this.observabilityService.recordWorkflowFailure(
+          workflowRun.startedAt ? (Date.now() - workflowRun.startedAt.getTime()) / 1000 : 0,
+        );
+        return;
       }
 
       // Persist the resolved input snapshot in TaskRun.input so execution history,

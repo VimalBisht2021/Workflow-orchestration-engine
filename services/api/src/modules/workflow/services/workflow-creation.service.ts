@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { v4 as uuid } from 'uuid';
 import { CreateWorkflowDto } from '../dto/create-workflow.dto';
 import { WorkflowStatus } from '../enums/workflow-status.enum';
@@ -10,6 +10,7 @@ import {
 } from '../repositories/workflow.repository';
 import { WorkflowResponseDto } from '../dto/workflow-response.dto';
 import { BackoffStrategy } from '@prisma/client';
+import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 
 @Injectable()
 export class WorkflowCreationService {
@@ -18,6 +19,8 @@ export class WorkflowCreationService {
   constructor(
     @Inject(WORKFLOW_REPOSITORY)
     private readonly workflowRepository: WorkflowRepository,
+    @Optional()
+    private readonly prisma?: PrismaService,
   ) {}
 
   async create(dto: CreateWorkflowDto): Promise<WorkflowResponseDto> {
@@ -32,22 +35,82 @@ export class WorkflowCreationService {
       new Date(),
     );
 
-    if (dto.tasks) {
+    if (dto.tasks && dto.tasks.length > 0) {
+      // Check if any incoming task ID already exists in the database
+      const incomingIds = dto.tasks.map((t) => t.id).filter(Boolean);
+      let existingSet = new Set<string>();
+      if (this.prisma && incomingIds.length > 0) {
+        try {
+          const existing = await this.prisma.taskDefinition.findMany({
+            where: { id: { in: incomingIds } },
+            select: { id: true },
+          });
+          existingSet = new Set(existing.map((e) => e.id));
+        } catch {
+          existingSet = new Set();
+        }
+      }
+
+      // Build task ID map to resolve collisions
+      const taskIdMap = new Map<string, string>();
       for (const t of dto.tasks) {
+        if (!t.id || existingSet.has(t.id)) {
+          taskIdMap.set(t.id, uuid());
+        } else {
+          taskIdMap.set(t.id, t.id);
+        }
+      }
+
+      for (const t of dto.tasks) {
+        const newTaskId = taskIdMap.get(t.id) || t.id;
+        const remappedDependencies = (t.dependencies || []).map(
+          (depId) => taskIdMap.get(depId) || depId,
+        );
+
+        let remappedConfig = t.configuration;
+        if (remappedConfig?.routes?.conditional) {
+          const cond: Record<string, string> = { ...remappedConfig.routes.conditional };
+          for (const [branch, target] of Object.entries(cond)) {
+            cond[branch] = taskIdMap.get(target) || target;
+          }
+          remappedConfig = {
+            ...remappedConfig,
+            routes: { ...remappedConfig.routes, conditional: cond },
+          };
+        }
+
+        let remappedInputMapping: Record<string, any> | undefined = undefined;
+        const rawMapping = t.inputMapping || t.configuration?.inputMapping;
+        if (rawMapping && typeof rawMapping === 'object') {
+          remappedInputMapping = {};
+          for (const [k, binding] of Object.entries(rawMapping)) {
+            remappedInputMapping[k] = {
+              ...(binding as any),
+              sourceNodeId: taskIdMap.get((binding as any).sourceNodeId) || (binding as any).sourceNodeId,
+            };
+          }
+          if (remappedConfig) {
+            remappedConfig = {
+              ...remappedConfig,
+              inputMapping: remappedInputMapping,
+            };
+          }
+        }
+
         workflow.addTask(
           new TaskDefinition(
-            t.id,
+            newTaskId,
             t.name,
             t.handler,
-            t.dependencies || [],
+            remappedDependencies,
             t.maxRetries || 0,
             t.retryDelayMs || 1000,
             t.backoffStrategy || BackoffStrategy.FIXED,
-            t.configuration,
+            remappedConfig,
             t.timeoutMs,
             undefined,
             undefined,
-            t.inputMapping || t.configuration?.inputMapping,
+            remappedInputMapping,
           ),
         );
       }

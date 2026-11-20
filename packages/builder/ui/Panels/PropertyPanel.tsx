@@ -389,6 +389,11 @@ const InputMappingSection: React.FC<InputMappingSectionProps> = ({
                                             <div className="text-[9px] text-slate-400">
                                                 Use dot notation for nested properties & array indices.
                                             </div>
+                                            {sourceNode?.pluginId === 'core/http' && (binding?.path?.[0] === 'result' || customPaths[targetKey]?.startsWith('result.')) && (
+                                                <div className="text-[10px] text-amber-700 bg-amber-50 p-1.5 rounded border border-amber-200 mt-1 leading-snug">
+                                                    ⚠️ <strong>Mismatched Step:</strong> &ldquo;{sourceNode.data.name || 'HTTP Step'}&rdquo; is an HTTP request producing <code>statusCode</code>, <code>body</code>, and <code>headers</code>. If you need <code>result.*</code>, change <strong>Source Step</strong> to a script node.
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

@@ -8,3 +8,4 @@ UPDATE "WorkflowRun"
 SET status = 'FAILED', 
     "completedAt" = NOW() 
 WHERE id = '16027014-0e3c-4565-8192-3bf5a6a31eaa';
+
