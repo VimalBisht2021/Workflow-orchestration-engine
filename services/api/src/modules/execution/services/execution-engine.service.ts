@@ -233,12 +233,27 @@ export class ExecutionEngine {
       });
 
       // Construct the versioned dispatch request
-      const request = this.buildDispatchRequest(
-        readyTask,
-        workflowRun,
-        definitionMap,
-        runMapByDefId,
-      );
+      let request;
+      try {
+        request = this.buildDispatchRequest(
+          readyTask,
+          workflowRun,
+          definitionMap,
+          runMapByDefId,
+        );
+      } catch (prepErr: any) {
+        this.logger.error(
+          `Pre-dispatch preparation failed for task ${readyTask.id}: ${prepErr.message}`,
+        );
+        readyTask.fail(prepErr.message);
+        await this.taskRunRepository.update(readyTask.id, {
+          status: readyTask.status,
+          error: prepErr.message,
+          completedAt: new Date(),
+        });
+        await this.failureStrategy.handleTaskFailure(readyTask, workflowRun);
+        continue;
+      }
 
       // Persist the resolved input snapshot in TaskRun.input so execution history,
       // retries, and reconciliation use consistent execution inputs.

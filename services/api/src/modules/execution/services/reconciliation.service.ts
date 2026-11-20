@@ -113,6 +113,32 @@ export class ReconciliationService
 
       const job = await this.taskGateway.getJobStatus(idempotencyKey);
       if (!job) {
+        // If task has been stuck in SCHEDULED for over 45s and never arrived at DTP,
+        // it was aborted or lost pre-dispatch. Mark as failed so workflow does not hang indefinitely.
+        const staleThresholdMs = 45000;
+        const isStaleScheduled =
+          task.status === 'SCHEDULED' &&
+          task.updatedAt &&
+          new Date(task.updatedAt).getTime() < Date.now() - staleThresholdMs;
+
+        if (isStaleScheduled) {
+          const timeoutErr = 'Task dispatch timed out or failed pre-dispatch validation.';
+          this.logger.warn(
+            `Reconciliation: Task ${task.id} stuck in SCHEDULED without remote job. Transitioning to FAILED.`,
+          );
+          await this.prisma.taskRun.update({
+            where: { id: task.id },
+            data: {
+              status: 'FAILED',
+              error: timeoutErr,
+              completedAt: new Date(),
+            },
+          });
+          await this.eventPublisher.publish(
+            new TaskFailedDomainEvent(task.workflowRunId, task.id, timeoutErr),
+          );
+          return true;
+        }
         return false;
       }
 
