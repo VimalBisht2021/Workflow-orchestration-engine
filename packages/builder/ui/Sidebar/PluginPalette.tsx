@@ -32,7 +32,7 @@ export const PluginPalette = () => {
         .filter(g => g.plugins.length > 0);
 
     return (
-        <aside className="w-64 bg-white border-r flex flex-col p-4 shadow-sm z-10 relative overflow-y-auto">
+        <aside className="w-64 h-full min-h-0 bg-white border-r flex flex-col p-4 shadow-sm z-10 relative overflow-y-auto">
             <h2 className="font-semibold mb-4 text-slate-700">Plugins</h2>
             {grouped.map(group => (
                 <div key={group.category} className="mb-4">

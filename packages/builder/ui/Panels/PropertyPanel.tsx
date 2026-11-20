@@ -418,7 +418,7 @@ export const PropertyPanel = () => {
 
     if (!selectedNodeId) {
         return (
-            <aside className="w-80 bg-white border-l p-4 flex flex-col items-center justify-center text-slate-400">
+            <aside className="w-80 h-full min-h-0 bg-white border-l p-4 flex flex-col items-center justify-center text-slate-400">
                 <p>Select a node to edit properties</p>
             </aside>
         );
@@ -486,7 +486,7 @@ export const PropertyPanel = () => {
     };
 
     return (
-        <aside className="w-80 bg-white border-l p-4 overflow-y-auto z-10 relative">
+        <aside className="w-80 h-full min-h-0 bg-white border-l p-4 overflow-y-auto z-10 relative">
             <h2 className="font-semibold mb-1 text-slate-800">Step Properties</h2>
             {manifest && (
                 <div className="text-xs text-slate-400 mb-3 font-medium">

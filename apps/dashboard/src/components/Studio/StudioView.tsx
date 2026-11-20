@@ -332,9 +332,9 @@ export function StudioView({ workflowId }: { workflowId?: string }) {
   return (
     <div className="h-screen flex flex-col w-full bg-slate-50 overflow-hidden">
       <WOEToolbar workflowId={workflowId} initialData={initialData} />
-      <div className="flex-1 w-full relative flex flex-row">
+      <div className="flex-1 w-full relative flex flex-row min-h-0 overflow-hidden">
         <PluginPalette />
-        <div className="flex-1 relative">
+        <div className="flex-1 relative h-full min-h-0 overflow-hidden">
           <WorkflowCanvas />
         </div>
         <PropertyPanel />

@@ -61,10 +61,11 @@ export default function RunDetailsPage() {
       setEvents(Array.isArray(eventsData) ? eventsData : []);
 
       // Update selectedTask if drawer is currently open
-      if (selectedTask) {
-        const updated = (Array.isArray(tasksData) ? tasksData : []).find(t => t.id === selectedTask.id);
-        if (updated) setSelectedTask(updated);
-      }
+      setSelectedTask((prev: any) => {
+        if (!prev) return null;
+        const updated = (Array.isArray(tasksData) ? tasksData : []).find((t: any) => t.id === prev.id);
+        return updated || prev;
+      });
 
       // Stop polling once the workflow reaches a terminal state
       if (TERMINAL_STATUSES.includes(runData?.status)) {
@@ -73,7 +74,7 @@ export default function RunDetailsPage() {
     } catch (err) {
       console.error('Failed to fetch run data:', err);
     }
-  }, [id, selectedTask]);
+  }, [id]);
 
   // Initial fetch + polling
   useEffect(() => {
@@ -341,81 +342,101 @@ export default function RunDetailsPage() {
 
         {/* Task Inspector Slide-over Drawer */}
         {selectedTask && (
-          <div className="fixed inset-y-0 right-0 w-full max-w-xl bg-white shadow-2xl border-l border-slate-200 z-50 flex flex-col">
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{selectedTask.taskDefinition?.name || selectedTask.id.split('-')[0]}</h3>
-                <div className="text-xs font-mono text-slate-500 mt-1 flex items-center gap-2">
-                  <span>ID: {selectedTask.id}</span>
-                  <span>•</span>
-                  <span>Handler: {selectedTask.taskDefinition?.handler}</span>
-                </div>
-              </div>
-              <button 
-                onClick={() => setSelectedTask(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Status and Timings */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+          <>
+            <div 
+              className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-40 transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedTask(null);
+              }}
+            />
+            <div 
+              className="fixed inset-y-0 right-0 w-full max-w-xl bg-white shadow-2xl border-l border-slate-200 z-50 flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                 <div>
-                  <span className="text-slate-500 block">Status:</span>
-                  <span className={`inline-block mt-1 font-bold ${selectedTask.status === 'COMPLETED' ? 'text-emerald-600' : selectedTask.status === 'FAILED' ? 'text-red-600' : 'text-slate-800'}`}>
-                    {selectedTask.status}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Execution Started:</span>
-                  <span className="font-mono mt-1 block">
-                    {selectedTask.startedAt ? new Date(selectedTask.startedAt).toLocaleTimeString() : 'Not started'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Error Banner if Failed */}
-              {selectedTask.error && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  <div className="font-bold flex items-center mb-1">
-                    <AlertTriangle className="w-4 h-4 mr-1.5 text-red-500" /> Error Details
+                  <h3 className="text-xl font-bold text-slate-900">{selectedTask.taskDefinition?.name || selectedTask.id.split('-')[0]}</h3>
+                  <div className="text-xs font-mono text-slate-500 mt-1 flex items-center gap-2">
+                    <span>ID: {selectedTask.id}</span>
+                    <span>•</span>
+                    <span>Handler: {selectedTask.taskDefinition?.handler}</span>
                   </div>
-                  <pre className="font-mono text-xs whitespace-pre-wrap">{selectedTask.error}</pre>
                 </div>
-              )}
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedTask(null);
+                  }}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-              {/* Input Payload */}
-              <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
-                  <Code className="w-4 h-4 mr-1.5 text-indigo-600" /> Input Payload
-                </h4>
-                <div className="bg-slate-900 rounded-lg p-4 overflow-x-auto text-emerald-400 font-mono text-xs max-h-60">
-                  <pre>{JSON.stringify(selectedTask.input, null, 2) || '// No input data'}</pre>
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Status and Timings */}
+                <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Status:</span>
+                    <span className={`inline-block mt-1 font-bold ${selectedTask.status === 'COMPLETED' ? 'text-emerald-600' : selectedTask.status === 'FAILED' ? 'text-red-600' : 'text-slate-800'}`}>
+                      {selectedTask.status}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Execution Started:</span>
+                    <span className="font-mono mt-1 block">
+                      {selectedTask.startedAt ? new Date(selectedTask.startedAt).toLocaleTimeString() : 'Not started'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Error Banner if Failed */}
+                {selectedTask.error && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <div className="font-bold flex items-center mb-1">
+                      <AlertTriangle className="w-4 h-4 mr-1.5 text-red-500" /> Error Details
+                    </div>
+                    <pre className="font-mono text-xs whitespace-pre-wrap">{selectedTask.error}</pre>
+                  </div>
+                )}
+
+                {/* Input Payload */}
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                    <Code className="w-4 h-4 mr-1.5 text-indigo-600" /> Input Payload
+                  </h4>
+                  <div className="bg-slate-900 rounded-lg p-4 overflow-x-auto text-emerald-400 font-mono text-xs max-h-60">
+                    <pre>{JSON.stringify(selectedTask.input, null, 2) || '// No input data'}</pre>
+                  </div>
+                </div>
+
+                {/* Output Result */}
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                    <Terminal className="w-4 h-4 mr-1.5 text-indigo-600" /> Output Result
+                  </h4>
+                  <div className="bg-slate-900 rounded-lg p-4 overflow-x-auto text-blue-300 font-mono text-xs max-h-60">
+                    <pre>{JSON.stringify(selectedTask.output, null, 2) || '// No output result'}</pre>
+                  </div>
                 </div>
               </div>
 
-              {/* Output Result */}
-              <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
-                  <Terminal className="w-4 h-4 mr-1.5 text-indigo-600" /> Output Result
-                </h4>
-                <div className="bg-slate-900 rounded-lg p-4 overflow-x-auto text-blue-300 font-mono text-xs max-h-60">
-                  <pre>{JSON.stringify(selectedTask.output, null, 2) || '// No output result'}</pre>
-                </div>
+              <div className="p-4 border-t border-slate-200 bg-slate-50 text-right">
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedTask(null);
+                  }}
+                  className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-md text-sm font-medium transition-colors cursor-pointer"
+                >
+                  Close Inspector
+                </button>
               </div>
             </div>
-
-            <div className="p-4 border-t border-slate-200 bg-slate-50 text-right">
-              <button 
-                onClick={() => setSelectedTask(null)}
-                className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-md text-sm font-medium transition-colors"
-              >
-                Close Inspector
-              </button>
-            </div>
-          </div>
+          </>
         )}
 
       </main>
